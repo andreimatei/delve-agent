@@ -16,7 +16,8 @@ var addrFlag = flag.String("addr", "127.0.0.1:45689", "")
 var script = `
 frames_of_interest = {
 	# 'executeWriteBatch': 'ba',
-	'executeRead': 'ba.Requests[0].Value.(*kvpb.RequestUnion_Get).Get'
+	'executeRead': 'ba'
+	# 'executeRead': 'ba.Requests[0].Value.(*kvpb.RequestUnion_Get).Get'
 	# 'DistSender': ba,
 }
 
@@ -40,9 +41,10 @@ def gs():
 			for foi in frames_of_interest:
 				if not f.Location.Function:
 					continue
-				# print("looking at ", g.ID, i, f.Location.Function.Name_)
+				# print("looking at ", g.ID, i, f.Location.Function.Name_, f.Location.File, f.Location.File.Line)
 				if foi in f.Location.Function.Name_:
-					print("found ", g.ID, i, f.Location.Function.Name_)
+					print("found frame of interest: gid: %d:%d, func: %s, location: %s:%d" %
+						(g.ID, i, f.Location.Function.Name_, f.Location.File, f.Location.Line))
 					res.append((g.ID, i, foi, f.Location.Function.Name_))
 			i = i+1
 		# print('-----------------------')
@@ -54,8 +56,10 @@ def gs():
 		vars.append(eval(
 				{"GoroutineID": r[0], "Frame": r[1]}, 
 				frames_of_interest[r[2]],
-				{"FollowPointers":True, "MaxVariableRecurse":5, "MaxStringLen":100, "MaxArrayValues":10, "MaxStructFields":1000}
-			).Variable.Value)
+				# panicky config: {"FollowPointers":True, "MaxVariableRecurse":2, "MaxStringLen":100, "MaxArrayValues":10, "MaxStructFields":100}
+				{"FollowPointers":True, "MaxVariableRecurse":2, "MaxStringLen":100, "MaxArrayValues":10, "MaxStructFields":100}
+			).Variable)  # .Value
+			
 
 	print("looked at #goroutines: ", len(gs))
 	return json.encode(vars)
@@ -77,7 +81,7 @@ func main() {
 
 		out, err := client.ExecScript(script)
 		if err != nil {
-			log.Printf("executing script failed: %s\n.Output:%s", err, out.Output)
+			log.Printf("executing script failed: %s\nOutput:%s", err, out.Output)
 		} else {
 			unquoted, err := strconv.Unquote(out.Val)
 			if err != nil {
