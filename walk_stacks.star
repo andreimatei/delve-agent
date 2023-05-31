@@ -1,3 +1,5 @@
+# Maps from function name to expressions to evaluate in the scope of that
+# function.
 frames_of_interest = {
     # 'executeWriteBatch': 'ba',
     #'executeRead': 'ba',
@@ -5,7 +7,6 @@ frames_of_interest = {
     'execStmtInOpenState': 'parserStmt.SQL'
     # 'executeRead': 'ba.Requests[0].Value.(*kvpb.RequestUnion_Get).Get'
 }
-
 
 goroutine_status_to_string = {
     0: "idle",
@@ -37,8 +38,7 @@ def serialize_backtrace(gid):
 def gs():
     gs = goroutines().Goroutines
 
-    res = []
-
+    captured_data = []
     g_out = {}
     for g in gs:
         stack = stacktrace(g.ID,
@@ -49,24 +49,42 @@ def gs():
                            # {"FollowPointers":True, "MaxVariableRecurse":3, "MaxStringLen":0, "MaxArrayValues":10, "MaxStructFields":100}, # MaxVariableRecurse:1, MaxStringLen:64, MaxArrayValues:64, MaxStructFields:-1}"
                            )
 
-
         # Search for frames of interest.
         backtrace = 'goroutine %d [%s]:\n' % (g.ID, goroutine_status_to_string[g.Status])
-        i = 0
+        # frame_index counts the frames as presented by stack.Locations. For a
+        # frame of interest, this index will later be used to eval() variables
+        # in the right scope.
+        frame_index = 0
+        # output_frame_index is like frame_index, but doesn't get incremented
+        # for frames that we don't include in the output. This will be used to
+        # associate the data about a frame of interest with the output stack
+        # frames.
+        output_frame_index = 0
         for f in stack.Locations:
-            fun_name = '<unknown>'
             if f.Location.Function:
                 fun_name = f.Location.Function.Name_
-            backtrace = backtrace + '%s\n\t%s:%d\n' % (fun_name, f.Location.File, f.Location.Line)
-            for foi in frames_of_interest:
+            else:
+                # TODO(andrei): if we don't have a function name, this is some
+                # some assembly code towards the bottom of the stack. We skip
+                # this frame because I'm not sure how to write something that
+                # panicparse will accept.
+                # fun_name = '<unknown>'
+                frame_index = frame_index+1
+                continue
+            backtrace = backtrace + '%s()\n\t%s:%d\n' % (fun_name, f.Location.File, f.Location.Line)
+            for function_of_interest in frames_of_interest:
                 if not f.Location.Function:
                     continue
-                if f.Location.Function.Name_.endswith(foi):
-                    # print("found frame of interest: gid: %d:%d, func: %s, location: %s:%d (0x%x)" %
-                    #	 (g.ID, i, f.Location.Function.Name_, f.Location.File, f.Location.Line, f.Location.PC))
-                    res.append((g.ID, i, foi, f.Location.Function.Name_))
-            i = i+1
-        # print(backtrace)
+                if f.Location.Function.Name_.endswith(function_of_interest):
+                    captured_data.append(struct(
+                        gid=g.ID,
+                        function_of_interest=function_of_interest,
+                        frame_index=frame_index,
+                        output_frame_index=output_frame_index,
+                    ))
+                    # res.append((g.ID, frame_index, function_of_interest, f.Location.Function.Name_))
+            frame_index = frame_index+1
+            output_frame_index = frame_index+1
         g_out[g.ID] = backtrace
         
         # if len(g_out) == 3:
@@ -79,25 +97,24 @@ def gs():
     # 	print(stacks[gid])
 
     # print("res: ", res)
+
+    # Evaluate the expressions for all the frames of interest
     vars = []
-    for r in res:
-        (gid, frame, foi, loc) = r
-        #print("reading from GoroutineID: %d, Frame: %d, foi: %s loc: %s" % (gid, frame, foi, loc)) # , frames_of_interest[r[2]])
-        #backtrace = serialize_backtrace(gid)
-        #print("backtrace for %d: %s" % (gid, backtrace))
+    for var in captured_data:
+        #(gid, frame, function_of_interest, loc) = r
         val = eval(
-            {"GoroutineID": gid, "Frame": frame},
-            frames_of_interest[foi],
+            {"GoroutineID": var.gid, "Frame": var.frame_index},
+            frames_of_interest[var.function_of_interest],
             {"FollowPointers":True, "MaxVariableRecurse":2, "MaxStringLen":100, "MaxArrayValues":10, "MaxStructFields":100}
         ).Variable.Value
-        vars.append(struct(gid = gid, frame = frame, value = val))
+        vars.append(struct(gid=var.gid, frame=var.output_frame_index, value=val))
 
     print("looked at #goroutines: ", len(gs))
-    res = {
+    output = {
         "stacks": g_out,
         "frames_of_interest": vars,
     }
-    return json.encode(res)
+    return json.encode(output)
 
 def main():
     return gs()
