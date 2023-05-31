@@ -20,7 +20,7 @@ goroutine_status_to_string = {
     8: "copystack",
 }
 
-def serialize_backtrace(gid):
+def serialize_backtrace(gid, limit):
     stack = stacktrace(gid,
                        100,   # depth
                        False, # full
@@ -33,6 +33,8 @@ def serialize_backtrace(gid):
         if f.Location.Function:
             fun_name = f.Location.Function.Name_
         backtrace = backtrace + '%d - %s %s:%d (0x%x)\n' % (i, fun_name, f.Location.File, f.Location.Line, f.Location.PC)
+        if i == limit:
+            break
     return backtrace
 
 def gs():
@@ -82,9 +84,11 @@ def gs():
                         frame_index=frame_index,
                         output_frame_index=output_frame_index,
                     ))
+                    # print("backtrace for %d:\n%s" % (g.ID, serialize_backtrace(g.ID, output_frame_index)))
+
                     # res.append((g.ID, frame_index, function_of_interest, f.Location.Function.Name_))
             frame_index = frame_index+1
-            output_frame_index = frame_index+1
+            output_frame_index = output_frame_index+1
         g_out[g.ID] = backtrace
         
         # if len(g_out) == 3:
