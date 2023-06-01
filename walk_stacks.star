@@ -1,10 +1,9 @@
-# Maps from function name to expressions to evaluate in the scope of that
-# function.
+# Maps from function name to list of expressions to evaluate in the scope of
+# that function.
 frames_of_interest = {
+    'execStmtInOpenState': ['parserStmt.SQL', 'p.semaCtx.Placeholders.Values'],
     # 'executeWriteBatch': 'ba',
     # 'executeRead': 'ba',
-    # 'execStmtInOpenState': 'stmt.SQL'
-    'execStmtInOpenState': 'parserStmt.SQL'
     # 'executeRead': 'ba.Requests[0].Value.(*kvpb.RequestUnion_Get).Get'
 }
 
@@ -80,8 +79,6 @@ def gs():
                 continue
             backtrace = backtrace + '%s()\n\t%s:%d\n' % (fun_name, f.Location.File, f.Location.Line)
             for function_of_interest in frames_of_interest:
-                if not f.Location.Function:
-                    continue
                 if f.Location.Function.Name_.endswith(function_of_interest):
                     recognized_frames.append(struct(
                         gid=g.ID,
@@ -96,32 +93,21 @@ def gs():
             output_frame_index = output_frame_index + 1
         g_out[g.ID] = backtrace
 
-        # if len(g_out) == 3:
-        #     break
-
-    # if res:
-    # 	print('-----------------------')
-    # for r in res:
-    # 	(gid, frame, foi, loc) = r
-    # 	print(stacks[gid])
-
-    # print("res: ", res)
-
     # Evaluate the expressions for all the frames of interest.
     # vars will be map of int (gid) to map of int (frame index) to list of
     # strings.
     vars = {}
     for var in recognized_frames:
-        # (gid, frame, function_of_interest, loc) = r
-        val = eval(
-            {"GoroutineID": var.gid, "Frame": var.frame_index},
-            frames_of_interest[var.function_of_interest],
-            {"FollowPointers": True, "MaxVariableRecurse": 2, "MaxStringLen": 100,
-             "MaxArrayValues": 10, "MaxStructFields": 100}
-        ).Variable.Value
-        vars.setdefault(var.gid, {})
-        vars[var.gid].setdefault(var.output_frame_index, [])
-        vars[var.gid][var.output_frame_index].append(str(val))
+        for expr in frames_of_interest[var.function_of_interest]:
+            val = eval(
+                {"GoroutineID": var.gid, "Frame": var.frame_index},
+                expr,
+                {"FollowPointers": True, "MaxVariableRecurse": 2, "MaxStringLen": 100,
+                 "MaxArrayValues": 10, "MaxStructFields": 100}
+            ).Variable.Value
+            vars.setdefault(var.gid, {})
+            vars[var.gid].setdefault(var.output_frame_index, [])
+            vars[var.gid][var.output_frame_index].append(str(val))
 
     print("looked at #goroutines: ", len(gs))
     output = {
