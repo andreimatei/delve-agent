@@ -2,7 +2,7 @@
 # function.
 frames_of_interest = {
     # 'executeWriteBatch': 'ba',
-    #'executeRead': 'ba',
+    # 'executeRead': 'ba',
     # 'execStmtInOpenState': 'stmt.SQL'
     'execStmtInOpenState': 'parserStmt.SQL'
     # 'executeRead': 'ba.Requests[0].Value.(*kvpb.RequestUnion_Get).Get'
@@ -20,11 +20,12 @@ goroutine_status_to_string = {
     8: "copystack",
 }
 
+
 def serialize_backtrace(gid, limit):
     stack = stacktrace(gid,
-                       100,   # depth
-                       False, # full
-                       False, # defers
+                       100,  # depth
+                       False,  # full
+                       False,  # defers
                        # 7,     # option flags
                        )
     backtrace = ''
@@ -32,10 +33,12 @@ def serialize_backtrace(gid, limit):
         fun_name = '<unknown>'
         if f.Location.Function:
             fun_name = f.Location.Function.Name_
-        backtrace = backtrace + '%d - %s %s:%d (0x%x)\n' % (i, fun_name, f.Location.File, f.Location.Line, f.Location.PC)
+        backtrace = backtrace + '%d - %s %s:%d (0x%x)\n' % (
+        i, fun_name, f.Location.File, f.Location.Line, f.Location.PC)
         if i == limit:
             break
     return backtrace
+
 
 def gs():
     gs = goroutines().Goroutines
@@ -46,9 +49,9 @@ def gs():
     g_out = {}
     for g in gs:
         stack = stacktrace(g.ID,
-                           100,   # depth
-                           False, # full
-                           False, # defers
+                           100,  # depth
+                           False,  # full
+                           False,  # defers
                            # 7,     # option flags
                            # {"FollowPointers":True, "MaxVariableRecurse":3, "MaxStringLen":0, "MaxArrayValues":10, "MaxStructFields":100}, # MaxVariableRecurse:1, MaxStringLen:64, MaxArrayValues:64, MaxStructFields:-1}"
                            )
@@ -73,7 +76,7 @@ def gs():
                 # this frame because I'm not sure how to write something that
                 # panicparse will accept.
                 # fun_name = '<unknown>'
-                frame_index = frame_index+1
+                frame_index = frame_index + 1
                 continue
             backtrace = backtrace + '%s()\n\t%s:%d\n' % (fun_name, f.Location.File, f.Location.Line)
             for function_of_interest in frames_of_interest:
@@ -89,10 +92,10 @@ def gs():
                     # print("backtrace for %d:\n%s" % (g.ID, serialize_backtrace(g.ID, output_frame_index)))
 
                     # res.append((g.ID, frame_index, function_of_interest, f.Location.Function.Name_))
-            frame_index = frame_index+1
-            output_frame_index = output_frame_index+1
+            frame_index = frame_index + 1
+            output_frame_index = output_frame_index + 1
         g_out[g.ID] = backtrace
-        
+
         # if len(g_out) == 3:
         #     break
 
@@ -109,11 +112,12 @@ def gs():
     # strings.
     vars = {}
     for var in recognized_frames:
-        #(gid, frame, function_of_interest, loc) = r
+        # (gid, frame, function_of_interest, loc) = r
         val = eval(
             {"GoroutineID": var.gid, "Frame": var.frame_index},
             frames_of_interest[var.function_of_interest],
-            {"FollowPointers":True, "MaxVariableRecurse":2, "MaxStringLen":100, "MaxArrayValues":10, "MaxStructFields":100}
+            {"FollowPointers": True, "MaxVariableRecurse": 2, "MaxStringLen": 100,
+             "MaxArrayValues": 10, "MaxStructFields": 100}
         ).Variable.Value
         vars.setdefault(var.gid, {})
         vars[var.gid].setdefault(var.output_frame_index, [])
@@ -125,6 +129,7 @@ def gs():
         "frames_of_interest": vars,
     }
     return json.encode(output)
+
 
 def main():
     return gs()
