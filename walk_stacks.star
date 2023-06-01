@@ -14,7 +14,7 @@ goroutine_status_to_string = {
     2: "running",
     3: "syscall",
     4: "waiting",
-    # 5: "moribund",  # supposedly unused
+    5: "moribund",  # supposedly unused
     6: "dead",
     7: "enqueue",
     8: "copystack",
@@ -40,7 +40,9 @@ def serialize_backtrace(gid, limit):
 def gs():
     gs = goroutines().Goroutines
 
-    captured_data = []
+    # recognized_frames accumulates info about frames for which we'll evaluate
+    # some expressions.
+    recognized_frames = []
     g_out = {}
     for g in gs:
         stack = stacktrace(g.ID,
@@ -78,7 +80,7 @@ def gs():
                 if not f.Location.Function:
                     continue
                 if f.Location.Function.Name_.endswith(function_of_interest):
-                    captured_data.append(struct(
+                    recognized_frames.append(struct(
                         gid=g.ID,
                         function_of_interest=function_of_interest,
                         frame_index=frame_index,
@@ -102,16 +104,20 @@ def gs():
 
     # print("res: ", res)
 
-    # Evaluate the expressions for all the frames of interest
-    vars = []
-    for var in captured_data:
+    # Evaluate the expressions for all the frames of interest.
+    # vars will be map of int (gid) to map of int (frame index) to list of
+    # strings.
+    vars = {}
+    for var in recognized_frames:
         #(gid, frame, function_of_interest, loc) = r
         val = eval(
             {"GoroutineID": var.gid, "Frame": var.frame_index},
             frames_of_interest[var.function_of_interest],
             {"FollowPointers":True, "MaxVariableRecurse":2, "MaxStringLen":100, "MaxArrayValues":10, "MaxStructFields":100}
         ).Variable.Value
-        vars.append(struct(gid=var.gid, frame=var.output_frame_index, value=val))
+        vars.setdefault(var.gid, {})
+        vars[var.gid].setdefault(var.output_frame_index, [])
+        vars[var.gid][var.output_frame_index].append(str(val))
 
     print("looked at #goroutines: ", len(gs))
     output = {

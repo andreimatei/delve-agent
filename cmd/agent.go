@@ -21,7 +21,7 @@ type Server struct {
 	client *rpc2.RPCClient
 }
 
-func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapshotOut) error {
+func (s *Server) GetSnapshot(_ agentrpc.GetSnapshotIn, out *agentrpc.GetSnapshotOut) error {
 	_ /* state */, err := s.client.Halt()
 	if err != nil {
 		panic(err)
@@ -61,7 +61,7 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 	var snap agentrpc.Snapshot
 	err = json.Unmarshal([]byte(unquoted), &snap)
 	if err != nil {
-		log.Printf("%v. failed to decode: %s", err, scriptRes.Val)
+		log.Printf("%v. failed to decode: %s", err, unquoted)
 		panic(err)
 	}
 	//ppSnap, err := parseSnapshot(snap)
