@@ -1,5 +1,11 @@
 package agentrpc
 
+type VarInfo struct {
+	Name    string
+	Type    string
+	VarType int
+}
+
 //type FrameOfInterest struct {
 //	// !!!
 //	//Gid   int
@@ -19,4 +25,12 @@ type Snapshot struct {
 type GetSnapshotIn struct{}
 type GetSnapshotOut struct {
 	Snapshot Snapshot
+}
+
+type ListVarsIn struct {
+	Func  string
+	PCOff int64
+}
+type ListVarsOut struct {
+	Vars []VarInfo
 }

@@ -33,7 +33,7 @@ def serialize_backtrace(gid, limit):
         if f.Location.Function:
             fun_name = f.Location.Function.Name_
         backtrace = backtrace + '%d - %s %s:%d (0x%x)\n' % (
-        i, fun_name, f.Location.File, f.Location.Line, f.Location.PC)
+            i, fun_name, f.Location.File, f.Location.Line, f.Location.PC)
         if i == limit:
             break
     return backtrace
@@ -77,7 +77,8 @@ def gs():
                 # fun_name = '<unknown>'
                 frame_index = frame_index + 1
                 continue
-            backtrace = backtrace + '%s()\n\t%s:%d\n' % (fun_name, f.Location.File, f.Location.Line)
+            backtrace = backtrace + '%s()\n\t%s:%d +0x%x\n' % (
+                fun_name, f.Location.File, f.Location.Line, f.Location.PC - f.Location.Function.EntryPC)
             for function_of_interest in frames_of_interest:
                 if f.Location.Function.Name_.endswith(function_of_interest):
                     recognized_frames.append(struct(

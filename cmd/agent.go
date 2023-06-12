@@ -72,6 +72,32 @@ func (s *Server) GetSnapshot(_ agentrpc.GetSnapshotIn, out *agentrpc.GetSnapshot
 	return nil
 }
 
+func (s *Server) ListVars(in agentrpc.ListVarsIn, out *agentrpc.ListVarsOut) error {
+	log.Printf("!!! ListVars...")
+
+	// !!! The halt is necessary, otherwise the RPC below blocks. Why?
+	_ /* state */, err := s.client.Halt()
+	if err != nil {
+		panic(err)
+	}
+
+	vars, err := s.client.ListAvailableVariables(in.Func, in.PCOff)
+	if err != nil {
+		log.Printf("!!! ListVars... err: %s", err)
+		return err
+	}
+	out.Vars = make([]agentrpc.VarInfo, len(vars))
+	for i, v := range vars {
+		out.Vars[i] = agentrpc.VarInfo{
+			Name:    v.Name,
+			Type:    v.Type,
+			VarType: v.VarType,
+		}
+	}
+	log.Printf("!!! ListVars... res: %v", out.Vars)
+	return nil
+}
+
 func main() {
 	flag.Parse()
 
