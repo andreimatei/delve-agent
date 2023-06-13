@@ -1,17 +1,13 @@
 package agentrpc
 
+// input and output of RPCs. In a separate package because they're shared with
+// client services.
+
 type VarInfo struct {
 	Name    string
 	Type    string
 	VarType int
 }
-
-//type FrameOfInterest struct {
-//	// !!!
-//	//Gid   int
-//	//Frame int
-//	Value []string
-//}
 
 type Snapshot struct {
 	Stacks map[int]string
@@ -19,7 +15,6 @@ type Snapshot struct {
 	// The frame indexes match the order in Stacks - from leaf function to
 	// callers.
 	Frames_of_interest map[int]map[int][]string
-	// !!! Frames_of_interest map[int]map[int]FrameOfInterest
 }
 
 type GetSnapshotIn struct{}
