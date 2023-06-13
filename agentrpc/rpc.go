@@ -1,13 +1,26 @@
 package agentrpc
 
+import "github.com/go-delve/delve/pkg/proc"
+
 // input and output of RPCs. In a separate package because they're shared with
 // client services.
 
-type VarInfo struct {
-	Name    string
-	Type    string
-	VarType int
-}
+//// Copied from Delve API pkg.
+//type VarInfo struct {
+//	Name    string
+//	Type    TypeInfo
+//	VarType int
+//}
+//
+//type TypeInfo struct {
+//	Name   string
+//	Fields []FieldInfo
+//}
+//
+//type FieldInfo struct {
+//	Name string
+//	Type TypeInfo
+//}
 
 type Snapshot struct {
 	Stacks map[int]string
@@ -27,5 +40,6 @@ type ListVarsIn struct {
 	PCOff int64
 }
 type ListVarsOut struct {
-	Vars []VarInfo
+	Vars  []proc.VarInfo
+	Types []proc.TypeInfo
 }

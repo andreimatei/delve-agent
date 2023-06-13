@@ -81,22 +81,37 @@ func (s *Server) ListVars(in agentrpc.ListVarsIn, out *agentrpc.ListVarsOut) err
 		panic(err)
 	}
 
-	vars, err := s.client.ListAvailableVariables(in.Func, in.PCOff)
+	vars, types, err := s.client.ListAvailableVariables(in.Func, in.PCOff)
 	if err != nil {
 		log.Printf("!!! ListVars... err: %s", err)
 		return err
 	}
-	out.Vars = make([]agentrpc.VarInfo, len(vars))
-	for i, v := range vars {
-		out.Vars[i] = agentrpc.VarInfo{
-			Name:    v.Name,
-			Type:    v.Type,
-			VarType: v.VarType,
-		}
-	}
+	out.Vars = vars
+	out.Types = types
+	//out.Vars = make([]agentrpc.VarInfo, len(vars))
+	//for i, v := range vars {
+	//	out.Vars[i] = agentrpc.VarInfo{
+	//		Name:    v.Name,
+	//		VarType: v.VarType,
+	//		Type:    convertType(v.),
+	//	}
+	//}
 	log.Printf("!!! ListVars... res: %v", out.Vars)
 	return nil
 }
+
+// !!!
+//func convertType(info proc.TypeInfo) agentrpc.TypeInfo {
+//	r := agentrpc.TypeInfo{
+//		Name: info.Name,
+//	}
+//	r.Fields = make([]agentrpc.FieldInfo, len(info.Fields))
+//	for i, f := range info.Fields {
+//		r.Fields[i].Name = f.Name
+//		r.Fields[i].Type = convertType(f.Type)
+//	}
+//	return r
+//}
 
 func main() {
 	flag.Parse()
