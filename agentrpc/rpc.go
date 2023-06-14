@@ -30,7 +30,10 @@ type Snapshot struct {
 	Frames_of_interest map[int]map[int][]string
 }
 
-type GetSnapshotIn struct{}
+type GetSnapshotIn struct {
+	FramesSpec map[string][]string
+}
+
 type GetSnapshotOut struct {
 	Snapshot Snapshot
 }

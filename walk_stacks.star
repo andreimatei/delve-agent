@@ -1,10 +1,13 @@
 # Maps from function name to list of expressions to evaluate in the scope of
 # that function.
+# frames_of_interest = {
+#     'execStmtInOpenState': ['parserStmt.SQL', 'p.semaCtx.Placeholders.Values'],
+#     # 'executeWriteBatch': 'ba',
+#     # 'executeRead': 'ba',
+#     # 'executeRead': 'ba.Requests[0].Value.(*kvpb.RequestUnion_Get).Get'
+# }
 frames_of_interest = {
-    'execStmtInOpenState': ['parserStmt.SQL', 'p.semaCtx.Placeholders.Values'],
-    # 'executeWriteBatch': 'ba',
-    # 'executeRead': 'ba',
-    # 'executeRead': 'ba.Requests[0].Value.(*kvpb.RequestUnion_Get).Get'
+    $frames_spec
 }
 
 goroutine_status_to_string = {

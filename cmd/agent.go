@@ -10,6 +10,7 @@ import (
 	"net/rpc"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/andreimatei/delve-agent/agentrpc"
 	"github.com/go-delve/delve/service/rpc2"
@@ -21,7 +22,8 @@ type Server struct {
 	client *rpc2.RPCClient
 }
 
-func (s *Server) GetSnapshot(_ agentrpc.GetSnapshotIn, out *agentrpc.GetSnapshotOut) error {
+func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapshotOut) error {
+	log.Printf("!!! GetSnapshot")
 	_ /* state */, err := s.client.Halt()
 	if err != nil {
 		panic(err)
@@ -43,7 +45,21 @@ func (s *Server) GetSnapshot(_ agentrpc.GetSnapshotIn, out *agentrpc.GetSnapshot
 	if err != nil {
 		log.Fatal(err)
 	}
-	scriptRes, err := s.client.ExecScript(string(starScript))
+
+	var sb strings.Builder
+	for frame, exprs := range in.FramesSpec {
+		sb.WriteString(fmt.Sprintf("'%s': [", frame))
+		for i, expr := range exprs {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(fmt.Sprintf("'%s'", expr))
+		}
+		sb.WriteString("],\n")
+	}
+	log.Printf("!!! GetSnapshot: script: %s", sb.String())
+	script := strings.Replace(string(starScript), "$frames_spec", sb.String(), 1)
+	scriptRes, err := s.client.ExecScript(script)
 	if err != nil {
 		return fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
 	}
