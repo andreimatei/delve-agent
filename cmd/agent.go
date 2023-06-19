@@ -97,7 +97,7 @@ func (s *Server) ListVars(in agentrpc.ListVarsIn, out *agentrpc.ListVarsOut) err
 		panic(err)
 	}
 
-	vars, types, err := s.client.ListAvailableVariables(in.Func, in.PCOff)
+	vars, types, err := s.client.ListAvailableVariables(in.Func, in.PCOff, 3 /* typeLevels */, -1 /* maxTypes */)
 	if err != nil {
 		log.Printf("!!! ListVars... err: %s", err)
 		return err
@@ -112,7 +112,6 @@ func (s *Server) ListVars(in agentrpc.ListVarsIn, out *agentrpc.ListVarsOut) err
 	//		Type:    convertType(v.),
 	//	}
 	//}
-	log.Printf("!!! ListVars... res: %v", out.Vars)
 	return nil
 }
 

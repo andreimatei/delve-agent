@@ -1,6 +1,8 @@
 package agentrpc
 
-import "github.com/go-delve/delve/pkg/proc"
+import (
+	"github.com/go-delve/delve/service/debugger"
+)
 
 // input and output of RPCs. In a separate package because they're shared with
 // client services.
@@ -43,6 +45,6 @@ type ListVarsIn struct {
 	PCOff int64
 }
 type ListVarsOut struct {
-	Vars  []proc.VarInfo
-	Types []proc.TypeInfo
+	Vars  []debugger.VarInfo
+	Types []debugger.TypeInfo
 }
