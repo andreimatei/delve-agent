@@ -111,7 +111,7 @@ def gs():
             ).Variable.Value
             vars.setdefault(var.gid, {})
             vars[var.gid].setdefault(var.output_frame_index, [])
-            vars[var.gid][var.output_frame_index].append(str(val))
+            vars[var.gid][var.output_frame_index].append({"Expr": expr, "Val": str(val)})
 
     print("looked at #goroutines: ", len(gs))
     output = {

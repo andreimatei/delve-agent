@@ -29,7 +29,12 @@ type Snapshot struct {
 	// Map from goroutine ID to map from frame index to array of captured values.
 	// The frame indexes match the order in Stacks - from leaf function to
 	// callers.
-	Frames_of_interest map[int]map[int][]string
+	Frames_of_interest map[int]map[int][]CapturedExpr
+}
+
+type CapturedExpr struct {
+	Expr string
+	Val  string
 }
 
 type GetSnapshotIn struct {
@@ -47,4 +52,16 @@ type ListVarsIn struct {
 type ListVarsOut struct {
 	Vars  []debugger.VarInfo
 	Types []debugger.TypeInfo
+}
+
+type GetTypeInfoIn struct {
+	Name string
+}
+type GetTypeInfoOut struct {
+	Fields []FieldInfo
+}
+type FieldInfo struct {
+	Name     string
+	TypeName string
+	Embedded bool
 }
