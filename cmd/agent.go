@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/go-delve/delve/service/api"
+	"github.com/kr/pretty"
 	"log"
 	"net"
 	"net/http"
@@ -159,8 +161,30 @@ func main() {
 	flag.Parse()
 
 	client := rpc2.NewClient(*delveAddrFlag)
-	srv := &Server{client: client}
 
+	starScript, err := os.ReadFile("query_break.star")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	bp, err := client.CreateBreakpoint(&api.Breakpoint{
+		Name:         "test",
+		File:         "/home/andrei/src/github.com/cockroachdb/cockroach/pkg/sql/conn_executor_exec.go",
+		Line:         276,
+		FunctionName: "",
+		Cond:         "",
+		Script:       string(starScript),
+	})
+	if err != nil {
+		panic(err)
+	}
+	pretty.Print(bp)
+	ch := client.Continue()
+	for s := range ch {
+		pretty.Print(s)
+	}
+
+	srv := &Server{client: client}
 	if err := rpc.RegisterName("Agent", srv); err != nil {
 		panic(err)
 	}
@@ -170,24 +194,6 @@ func main() {
 		log.Fatal("listen error:", e)
 	}
 	_ = http.Serve(l, nil)
-
-	//for {
-	//	var snapOut GetSnapshotOut
-	//	err := srv.GetSnapshot(GetSnapshotIn{}, &snapOut)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//	//pretty.Print(snap)
-	//
-	//	ppSnap, err := parseSnapshot(snapOut.Snapshot)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//	_ = ppSnap
-	//	pretty.Print(ppSnap)
-	//
-	//	time.Sleep(time.Second)
-	//}
 }
 
 //func parseSnapshot(s Snapshot) (*pp.Snapshot, error) {

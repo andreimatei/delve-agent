@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/go-delve/delve v1.20.2
+	github.com/kr/pretty v0.2.1
 )
 
 require (
