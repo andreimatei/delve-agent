@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/go-delve/delve/service/api"
-	"github.com/kr/pretty"
 	"log"
 	"net"
 	"net/http"
@@ -162,27 +160,27 @@ func main() {
 
 	client := rpc2.NewClient(*delveAddrFlag)
 
-	starScript, err := os.ReadFile("query_break.star")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	bp, err := client.CreateBreakpoint(&api.Breakpoint{
-		Name:         "test",
-		File:         "/home/andrei/src/github.com/cockroachdb/cockroach/pkg/sql/conn_executor_exec.go",
-		Line:         276,
-		FunctionName: "",
-		Cond:         "",
-		Script:       string(starScript),
-	})
-	if err != nil {
-		panic(err)
-	}
-	pretty.Print(bp)
-	ch := client.Continue()
-	for s := range ch {
-		pretty.Print(s)
-	}
+	//starScript, err := os.ReadFile("query_break.star")
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//
+	//bp, err := client.CreateBreakpoint(&api.Breakpoint{
+	//	Name:         "test",
+	//	File:         "/home/andrei/src/github.com/cockroachdb/cockroach/pkg/sql/conn_executor_exec.go",
+	//	Line:         276,
+	//	FunctionName: "",
+	//	Cond:         "",
+	//	Script:       string(starScript),
+	//})
+	//if err != nil {
+	//	panic(err)
+	//}
+	//pretty.Print(bp)
+	//ch := client.Continue()
+	//for s := range ch {
+	//	pretty.Print(s)
+	//}
 
 	srv := &Server{client: client}
 	if err := rpc.RegisterName("Agent", srv); err != nil {

@@ -29,7 +29,10 @@ type Snapshot struct {
 	// Map from goroutine ID to map from frame index to array of captured values.
 	// The frame indexes match the order in Stacks - from leaf function to
 	// callers.
-	Frames_of_interest map[int]map[int][]CapturedExpr
+	FramesOfInterest map[int]map[int][]CapturedExpr
+	// FlightRecorder is a dump of the recorded data. The recorded data consists
+	// of a map from key to buffer representing the latest events with that key.
+	FlightRecorder map[string][]string
 }
 
 type CapturedExpr struct {
@@ -38,6 +41,8 @@ type CapturedExpr struct {
 }
 
 type GetSnapshotIn struct {
+	// FramesSpec maps from function name to list of expressions to evaluate and
+	// collect.
 	FramesSpec map[string][]string
 }
 
