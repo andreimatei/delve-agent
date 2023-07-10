@@ -7,23 +7,6 @@ import (
 // input and output of RPCs. In a separate package because they're shared with
 // client services.
 
-//// Copied from Delve API pkg.
-//type VarInfo struct {
-//	Name    string
-//	Type    TypeInfo
-//	VarType int
-//}
-//
-//type TypeInfo struct {
-//	Name   string
-//	Fields []FieldInfo
-//}
-//
-//type FieldInfo struct {
-//	Name string
-//	Type TypeInfo
-//}
-
 type Snapshot struct {
 	Stacks map[int]string
 	// Map from goroutine ID to map from frame index to array of captured values.
@@ -69,4 +52,17 @@ type FieldInfo struct {
 	Name     string
 	TypeName string
 	Embedded bool
+}
+
+type FlightRecorderEventSpec struct {
+	Frame   string
+	Expr    string
+	KeyExpr string
+}
+
+type ReconcileFlightRecorderIn struct {
+	Events []FlightRecorderEventSpec
+}
+
+type ReconcileFLightRecorderOut struct {
 }

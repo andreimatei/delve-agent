@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/go-delve/delve/service/api"
 	"log"
 	"net"
 	"net/http"
@@ -152,6 +153,95 @@ func (s *Server) GetTypeInfo(in agentrpc.GetTypeInfoIn, out *agentrpc.GetTypeInf
 			Embedded: f.Embedded,
 		}
 	}
+	return nil
+}
+
+func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, out *agentrpc.ReconcileFLightRecorderOut) error {
+	log.Printf("!!! ReconcileFlightRecorde: %v", in)
+	_ /* state */, err := s.client.Halt()
+	if err != nil {
+		panic(err)
+	}
+	defer s.continueProcess()
+
+	scriptTemplate :=
+		`
+	stmt = eval(None, "$expr")
+	flight_recorder(str(cur_scope().GoroutineID), stmt.Variable.Value)
+`
+
+	bks, err := s.client.ListBreakpoints(false /* all ? */)
+	if err != nil {
+		return err
+	}
+
+	evName := func(ev agentrpc.FlightRecorderEventSpec) string {
+		return fmt.Sprintf("%s-%s", ev.Frame, ev.Expr)
+	}
+
+	findEv := func(name string) int {
+		for i, ev := range in.Events {
+			if name == evName(ev) {
+				return i
+			}
+		}
+		return -1
+	}
+
+	// map from idx
+	alreadyExists := make(map[int]struct{})
+	for _, bk := range bks {
+		evIdx := findEv(bk.Name)
+		if evIdx == -1 {
+			_, err := s.client.ClearBreakpoint(bk.ID)
+			if err != nil {
+				return nil
+			}
+		}
+		alreadyExists[evIdx] = struct{}{}
+	}
+
+	for i, ev := range in.Events {
+		if _, ok := alreadyExists[i]; ok {
+			continue
+		}
+
+		keyExpr := ev.KeyExpr
+		if ev.KeyExpr == "goroutineID" {
+			keyExpr = `str(cur_scope().GoroutineID)`
+		}
+		script := strings.ReplaceAll(scriptTemplate, "$expr", ev.Expr)
+		script = strings.ReplaceAll(script, "$keyExpr", keyExpr)
+
+		locs, err := s.client.FindLocation(api.EvalScope{
+			GoroutineID:  -1,
+			Frame:        0,
+			DeferredCall: 0,
+		},
+			ev.Frame,
+			true, // findInstructions
+			nil,  // substitutePathRules
+		)
+		if err != nil {
+			return err
+		}
+		if len(locs) != 1 {
+			return fmt.Errorf("found %d locations for %s", len(locs), ev.Frame)
+		}
+
+		_, err = s.client.CreateBreakpoint(&api.Breakpoint{
+			Name:   evName(ev),
+			Addrs:  []uint64{locs[0].PC},
+			File:   locs[0].File,
+			Line:   locs[0].Line,
+			Script: script,
+		})
+		if err != nil {
+			return err
+		}
+		log.Printf("installed breakpoint: %s - %s (%s)", ev.Frame, ev.Expr, ev.KeyExpr)
+	}
+
 	return nil
 }
 
