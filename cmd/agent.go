@@ -83,7 +83,6 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("!!! GetSnapshot: script result: %s", unquoted)
 	// Unmarshal the script results.
 	var snap scriptResults
 	err = json.Unmarshal([]byte(unquoted), &snap)
@@ -98,7 +97,6 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 		return err
 	}
 
-	log.Printf("!!! GetSnapshot: stacks: %+v\nframes of interest:%s", snap.Stacks, snap.FramesOfInterest)
 	out.Snapshot = agentrpc.Snapshot{
 		Stacks:             snap.Stacks,
 		FramesOfInterest:   snap.FramesOfInterest,
