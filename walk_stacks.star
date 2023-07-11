@@ -51,7 +51,7 @@ def gs():
     g_out = {}
     for g in gs:
         stack = stacktrace(g.ID,
-                           100,  # depth
+                           200,  # depth
                            False,  # full
                            False,  # defers
                            # 7,     # option flags

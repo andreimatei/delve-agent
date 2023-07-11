@@ -36,26 +36,31 @@ func (s *Server) continueProcess() {
 	}()
 }
 
+// scriptResults is the result of running the walk_stacks.star script.
+type scriptResults struct {
+	Stacks map[int]string `json:"stacks"`
+	// Map from goroutine ID to map from frame index to array of captured values.
+	// The frame indexes match the order in Stacks - from leaf function to
+	// callers.
+	FramesOfInterest map[int]map[int][]agentrpc.CapturedExpr `json:"frames_of_interest"`
+}
+
+// GetSnapshot collects the stack traces of all the goroutines and the requested
+// data for the specified frames of interest.
 func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapshotOut) error {
-	log.Printf("!!! GetSnapshot: request received")
+	log.Printf("!!! GetSnapshot")
 	_ /* state */, err := s.client.Halt()
 	if err != nil {
 		panic(err)
 	}
 	defer s.continueProcess()
-	log.Printf("!!! GetSnapshot: process halted")
 
 	starScript, err := os.ReadFile("walk_stacks.star")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// !!!
-	//if len(in.FramesSpec) == 0 {
-	//	in.FramesSpec["google.golang.org/grpc.(*csAttempt).recvMsg"] = []string{"a.s.id"}
-	//	in.FramesSpec["google.golang.org/grpc.(*Server).processUnaryRPC"] = []string{"stream.id"}
-	//}
-
+	// Parameterize the script with the frames of interest.
 	var sb strings.Builder
 	for frame, exprs := range in.FramesSpec {
 		sb.WriteString(fmt.Sprintf("'%s': [", frame))
@@ -67,35 +72,39 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 		}
 		sb.WriteString("],\n")
 	}
+	// Run the script.
 	log.Printf("!!! GetSnapshot: running script with args: %s", sb.String())
 	script := strings.Replace(string(starScript), "$frames_spec", sb.String(), 1)
 	scriptRes, err := s.client.ExecScript(script)
 	if err != nil {
 		return fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
 	}
-
 	unquoted, err := strconv.Unquote(scriptRes.Val)
 	if err != nil {
 		panic(err)
 	}
-	//var prettyJSON bytes.Buffer
-	//if err := json.Indent(&prettyJSON, []byte(unquoted), "", "\t"); err != nil {
-	//	panic(err)
-	//}
-	// log.Printf("script output: %sval: %s", out.Output, prettyJSON.String())
-
-	var snap agentrpc.Snapshot
+	log.Printf("!!! GetSnapshot: script result: %s", unquoted)
+	// Unmarshal the script results.
+	var snap scriptResults
 	err = json.Unmarshal([]byte(unquoted), &snap)
 	if err != nil {
 		log.Printf("%v. failed to decode: %s", err, unquoted)
 		panic(err)
 	}
-	//ppSnap, err := parseSnapshot(snap)
-	//if err != nil {
-	//	panic(err)
-	//}
-	out.Snapshot = snap
-	log.Printf("!!! GetSnapshot: done")
+
+	// Read the flight recorder data and attach it to the results.
+	frData, err := s.client.GetFlightRecorderData()
+	if err != nil {
+		return err
+	}
+
+	log.Printf("!!! GetSnapshot: stacks: %+v\nframes of interest:%s", snap.Stacks, snap.FramesOfInterest)
+	out.Snapshot = agentrpc.Snapshot{
+		Stacks:             snap.Stacks,
+		FramesOfInterest:   snap.FramesOfInterest,
+		FlightRecorderData: frData.Data,
+	}
+	log.Printf("!!! GetSnapshot: done. Frames of interest: %+v", out.Snapshot.FramesOfInterest)
 	return nil
 }
 
@@ -116,9 +125,9 @@ func (s *Server) ListVars(in agentrpc.ListVarsIn, out *agentrpc.ListVarsOut) err
 	}
 	out.Vars = vars
 	out.Types = types
-	for _, t := range types {
-		log.Printf("!!! got type: %s loaded: %t", t.Name, !t.FieldsNotLoaded)
-	}
+	//for _, t := range types {
+	//	log.Printf("!!! got type: %s loaded: %t", t.Name, !t.FieldsNotLoaded)
+	//}
 	//out.Vars = make([]agentrpc.VarInfo, len(vars))
 	//for i, v := range vars {
 	//	out.Vars[i] = agentrpc.VarInfo{
@@ -157,17 +166,16 @@ func (s *Server) GetTypeInfo(in agentrpc.GetTypeInfoIn, out *agentrpc.GetTypeInf
 }
 
 func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, out *agentrpc.ReconcileFLightRecorderOut) error {
-	log.Printf("!!! ReconcileFlightRecorde: %v", in)
+	log.Printf("!!! ReconcileFlightRecorder: %v", in)
 	_ /* state */, err := s.client.Halt()
 	if err != nil {
 		panic(err)
 	}
 	defer s.continueProcess()
 
-	scriptTemplate :=
-		`
-	stmt = eval(None, "$expr")
-	flight_recorder(str(cur_scope().GoroutineID), stmt.Variable.Value)
+	scriptTemplate := `
+stmt = eval(None, "$expr")
+flight_recorder(str(cur_scope().GoroutineID), stmt.Variable.Value)
 `
 
 	bks, err := s.client.ListBreakpoints(false /* all ? */)
@@ -198,6 +206,7 @@ func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, 
 				return nil
 			}
 		}
+		log.Printf("event %s already exists", bk.Name)
 		alreadyExists[evIdx] = struct{}{}
 	}
 
@@ -212,6 +221,7 @@ func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, 
 		}
 		script := strings.ReplaceAll(scriptTemplate, "$expr", ev.Expr)
 		script = strings.ReplaceAll(script, "$keyExpr", keyExpr)
+		fmt.Printf("script: %s\n", script)
 
 		locs, err := s.client.FindLocation(api.EvalScope{
 			GoroutineID:  -1,
@@ -229,6 +239,7 @@ func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, 
 			return fmt.Errorf("found %d locations for %s", len(locs), ev.Frame)
 		}
 
+		log.Printf("creating breakpoint: %s - %s (%s)", ev.Frame, ev.Expr, ev.KeyExpr)
 		_, err = s.client.CreateBreakpoint(&api.Breakpoint{
 			Name:   evName(ev),
 			Addrs:  []uint64{locs[0].PC},

@@ -13,9 +13,9 @@ type Snapshot struct {
 	// The frame indexes match the order in Stacks - from leaf function to
 	// callers.
 	FramesOfInterest map[int]map[int][]CapturedExpr
-	// FlightRecorder is a dump of the recorded data. The recorded data consists
+	// FlightRecorderData is a dump of the recorded data. The recorded data consists
 	// of a map from key to buffer representing the latest events with that key.
-	FlightRecorder map[string][]string
+	FlightRecorderData map[string][]string
 }
 
 type CapturedExpr struct {
