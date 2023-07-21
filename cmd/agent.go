@@ -163,6 +163,17 @@ func (s *Server) GetTypeInfo(in agentrpc.GetTypeInfoIn, out *agentrpc.GetTypeInf
 	return nil
 }
 
+func (s *Server) ListFunctions(in agentrpc.ListFunctionsIn, out *agentrpc.ListFunctionsOut) error {
+	log.Printf("ListFunctions...")
+	funcs, err := s.client.ListFunctions(in.Filter)
+	log.Printf("ListFunctions... %v", err)
+	if err != nil {
+		return err
+	}
+	out.Funcs = funcs
+	return nil
+}
+
 func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, out *agentrpc.ReconcileFLightRecorderOut) error {
 	log.Printf("!!! ReconcileFlightRecorder: %v", in)
 	_ /* state */, err := s.client.Halt()

@@ -64,5 +64,14 @@ type ReconcileFlightRecorderIn struct {
 	Events []FlightRecorderEventSpec
 }
 
+// ListFunctionsIn and ListFunctionsOut mimic the corresponding RPC from Delve.
+type ListFunctionsIn struct {
+	Filter string
+}
+
+type ListFunctionsOut struct {
+	Funcs []string
+}
+
 type ReconcileFLightRecorderOut struct {
 }
