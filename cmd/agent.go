@@ -108,6 +108,9 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 
 func (s *Server) ListVars(in agentrpc.ListVarsIn, out *agentrpc.ListVarsOut) error {
 	log.Printf("!!! ListVars...")
+	defer func() {
+		log.Printf("!!! ListVars... done")
+	}()
 
 	// !!! The halt is necessary, otherwise the RPC below blocks. Why?
 	_ /* state */, err := s.client.Halt()
@@ -164,9 +167,15 @@ func (s *Server) GetTypeInfo(in agentrpc.GetTypeInfoIn, out *agentrpc.GetTypeInf
 }
 
 func (s *Server) ListFunctions(in agentrpc.ListFunctionsIn, out *agentrpc.ListFunctionsOut) error {
-	log.Printf("ListFunctions...")
+	_ /* state */, err := s.client.Halt()
+	if err != nil {
+		panic(err)
+	}
+	defer s.continueProcess()
+
+	log.Printf("!!! ListFunctions...")
 	funcs, err := s.client.ListFunctions(in.Filter)
-	log.Printf("ListFunctions... %v", err)
+	log.Printf("!!! ListFunctions... %v", err)
 	if err != nil {
 		return err
 	}
