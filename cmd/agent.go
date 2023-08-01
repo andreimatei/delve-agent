@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/go-delve/delve/service/api"
+	"github.com/kr/pretty"
 	"log"
 	"net"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 
 var delveAddrFlag = flag.String("addr", "127.0.0.1:45689", "")
 var listenAddrFlag = flag.String("listen", "127.0.0.1:1234", "")
+var oneShot = flag.Bool("oneshot", false, "")
 
 type Server struct {
 	client *rpc2.RPCClient
@@ -278,6 +280,28 @@ func main() {
 	flag.Parse()
 
 	client := rpc2.NewClient(*delveAddrFlag)
+
+	if *oneShot {
+		gs, _, err := client.ListGoroutines(0, 10000)
+		if err != nil {
+			panic(err)
+		}
+		for _, g := range gs {
+			stack, err := client.StacktraceEx(g.ID, 500, 0, nil)
+			if err != nil {
+				panic(err)
+			}
+			pretty.Print(stack)
+		}
+
+		//stack, err := client.StacktraceEx(2226, 500, 0, nil)
+		//if err != nil {
+		//	panic(err)
+		//}
+		//pretty.Print(stack)
+
+		return
+	}
 
 	//starScript, err := os.ReadFile("query_break.star")
 	//if err != nil {

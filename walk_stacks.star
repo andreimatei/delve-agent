@@ -41,6 +41,14 @@ def serialize_backtrace(gid, limit):
             break
     return backtrace
 
+# def getSpanNameFromCtx(gid, frame_idx, lastCtx):
+#     val = eval(
+#         {"GoroutineID": gid, "Frame": frame_idx},
+#         "ctx",
+#         {"FollowPointers": False}
+#     )
+#     if val != None:
+#         print(val.Variable)
 
 def gs():
     gs = goroutines().Goroutines
@@ -49,13 +57,18 @@ def gs():
     # some expressions.
     recognized_frames = []
     g_out = {}
+    # vars will be map of int (gid) to map of int (frame index) to list of
+    # strings.
+    vars = {}
     for g in gs:
+        print("======= GOROUTINE ", g.ID)
         stack = stacktrace(g.ID,
                            200,  # depth
                            False,  # full
                            False,  # defers
                            # 7,     # option flags
                            # {"FollowPointers":True, "MaxVariableRecurse":3, "MaxStringLen":0, "MaxArrayValues":10, "MaxStructFields":100}, # MaxVariableRecurse:1, MaxStringLen:64, MaxArrayValues:64, MaxStructFields:-1}"
+                           ContextExprs=True,
                            )
 
         # Search for frames of interest.
@@ -82,6 +95,10 @@ def gs():
                 continue
             backtrace = backtrace + '%s()\n\t%s:%d +0x%x\n' % (
                 fun_name, f.Location.File, f.Location.Line, f.Location.PC - f.Location.Function.EntryPC)
+            op = ""
+            if len(f.CtxExpressions) > 0:
+                op = f.CtxExpressions[0].Value
+            print(g.ID, fun_name, op, len(f.CtxExpressions))
             for function_of_interest in frames_of_interest:
                 if f.Location.Function.Name_.endswith(function_of_interest):
                     recognized_frames.append(struct(
@@ -90,28 +107,28 @@ def gs():
                         frame_index=frame_index,
                         output_frame_index=output_frame_index,
                     ))
-                    # print("backtrace for %d:\n%s" % (g.ID, serialize_backtrace(g.ID, output_frame_index)))
 
-                    # res.append((g.ID, frame_index, function_of_interest, f.Location.Function.Name_))
+            if len(f.CtxExpressions) > 0:
+                op = f.CtxExpressions[0].Value
+                vars.setdefault(g.ID, {})
+                vars[g.ID][output_frame_index] = [{"Expr": "span.op", "Val": op}]
+
             frame_index = frame_index + 1
             output_frame_index = output_frame_index + 1
         g_out[g.ID] = backtrace
 
     # Evaluate the expressions for all the frames of interest.
-    # vars will be map of int (gid) to map of int (frame index) to list of
-    # strings.
-    vars = {}
-    for var in recognized_frames:
-        for expr in frames_of_interest[var.function_of_interest]:
+    for frame in recognized_frames:
+        for expr in frames_of_interest[frame.function_of_interest]:
             val = eval(
-                {"GoroutineID": var.gid, "Frame": var.frame_index},
+                {"GoroutineID": frame.gid, "Frame": frame.frame_index},
                 expr,
                 {"FollowPointers": True, "MaxVariableRecurse": 2, "MaxStringLen": 100,
                  "MaxArrayValues": 10, "MaxStructFields": 100}
             ).Variable.Value
-            vars.setdefault(var.gid, {})
-            vars[var.gid].setdefault(var.output_frame_index, [])
-            vars[var.gid][var.output_frame_index].append({"Expr": expr, "Val": str(val)})
+            vars.setdefault(frame.gid, {})
+            vars[frame.gid].setdefault(frame.output_frame_index, [])
+            vars[frame.gid][frame.output_frame_index].append({"Expr": expr, "Val": str(val)})
 
     print("looked at #goroutines: ", len(gs))
     output = {
