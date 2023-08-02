@@ -97,7 +97,7 @@ def gs():
                 fun_name, f.Location.File, f.Location.Line, f.Location.PC - f.Location.Function.EntryPC)
             op = ""
             if len(f.CtxExpressions) > 0:
-                op = f.CtxExpressions[0].Value
+                op = f.CtxExpressions[1]
             print(g.ID, fun_name, op, len(f.CtxExpressions))
             for function_of_interest in frames_of_interest:
                 if f.Location.Function.Name_.endswith(function_of_interest):
@@ -109,9 +109,11 @@ def gs():
                     ))
 
             if len(f.CtxExpressions) > 0:
-                op = f.CtxExpressions[0].Value
                 vars.setdefault(g.ID, {})
-                vars[g.ID][output_frame_index] = [{"Expr": "span.op", "Val": op}]
+                vars[g.ID][output_frame_index] = [
+                    {"Expr": "span.traceID", "Val": f.CtxExpressions[0]},
+                    {"Expr": "span.op", "Val": f.CtxExpressions[1]},
+                ]
 
             frame_index = frame_index + 1
             output_frame_index = output_frame_index + 1
