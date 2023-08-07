@@ -23,10 +23,26 @@ type CapturedExpr struct {
 	Val  string
 }
 
+type LoadSpec struct {
+	// CollectAll indicates that all fields should be collected.
+	CollectAll bool
+	// Expressions is a list of expressions to evaluate and collect, in addition
+	// to everything collected by CollectAll (if specified).
+	Expressions []string
+}
+
+type TypeSpec struct {
+	TypeName string
+	LoadSpec LoadSpec
+}
+
 type GetSnapshotIn struct {
 	// FramesSpec maps from function name to list of expressions to evaluate and
 	// collect.
 	FramesSpec map[string][]string
+	// TypeSpecs contains specific instructions about what to collect when one of
+	// these types is encountered.
+	TypeSpecs []TypeSpec
 }
 
 type GetSnapshotOut struct {

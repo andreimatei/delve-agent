@@ -76,13 +76,9 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 	}
 	// Run the script.
 	script := strings.Replace(string(starScript), "$frames_spec", sb.String(), 1)
-	typeSpecs := `[
-	{
-	"TypeName": "github.com/cockroachdb/cockroach/pkg/kv/kvpb.PutRequest",
-	"LoadSpec": {"Exprs": ["Value", "Inline", "Blind"]},
-	}
-]`
-	script = strings.Replace(script, "$type_specs", typeSpecs, 1)
+	typeSpecs := typeSpecsToStarlark(in.TypeSpecs)
+	log.Printf("typeSpecs: %s", typeSpecs)
+	script = strings.Replace(script, "$type_specs", typeSpecsToStarlark(in.TypeSpecs), 1)
 
 	scriptRes, err := s.client.ExecScript(script)
 	if err != nil {
@@ -111,8 +107,40 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 		FramesOfInterest:   snap.FramesOfInterest,
 		FlightRecorderData: frData.Data,
 	}
-	log.Printf("!!! GetSnapshot: done. Frames of interest: %+v", out.Snapshot.FramesOfInterest)
 	return nil
+}
+
+func typeSpecsToStarlark(specs []agentrpc.TypeSpec) string {
+	// Generate a starlark list looking list this:
+	//	typeSpecs := `[
+	//	{
+	//	"TypeName": "github.com/cockroachdb/cockroach/pkg/kv/kvpb.PutRequest",
+	//	"CollectAll: false,
+	//	"LoadSpec": {"Exprs": ["Value", "Inline", "Blind"]},
+	//	},
+	//  ...
+	//]`
+
+	var sb strings.Builder
+	sb.WriteString("[\n")
+	for _, spec := range specs {
+		sb.WriteString("{\n")
+		sb.WriteString(fmt.Sprintf("\t\"TypeName\": \"%s\",\n", spec.TypeName))
+		collectAllStr := "False"
+		if spec.LoadSpec.CollectAll {
+			collectAllStr = "True"
+		}
+		sb.WriteString(fmt.Sprintf("\t\"LoadSpec\": {\"CollectAll\": %s, \"Exprs\": [", collectAllStr))
+		for i, expr := range spec.LoadSpec.Expressions {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(fmt.Sprintf("\"%s\"", expr))
+		}
+		sb.WriteString("]},\n}\n")
+	}
+	sb.WriteString("]")
+	return sb.String()
 }
 
 func (s *Server) ListVars(in agentrpc.ListVarsIn, out *agentrpc.ListVarsOut) error {
