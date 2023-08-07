@@ -73,5 +73,14 @@ type ListFunctionsOut struct {
 	Funcs []string
 }
 
+// ListTypesIn and ListTypesOut mimic the corresponding RPC from Delve.
+type ListTypesIn struct {
+	Filter string
+}
+
+type ListTypesOut struct {
+	Types []string
+}
+
 type ReconcileFLightRecorderOut struct {
 }

@@ -75,8 +75,15 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 		sb.WriteString("],\n")
 	}
 	// Run the script.
-	log.Printf("!!! GetSnapshot: running script with args: %s", sb.String())
 	script := strings.Replace(string(starScript), "$frames_spec", sb.String(), 1)
+	typeSpecs := `[
+	{
+	"TypeName": "github.com/cockroachdb/cockroach/pkg/kv/kvpb.PutRequest",
+	"LoadSpec": {"Exprs": ["Value", "Inline", "Blind"]},
+	}
+]`
+	script = strings.Replace(script, "$type_specs", typeSpecs, 1)
+
 	scriptRes, err := s.client.ExecScript(script)
 	if err != nil {
 		return fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
@@ -175,13 +182,26 @@ func (s *Server) ListFunctions(in agentrpc.ListFunctionsIn, out *agentrpc.ListFu
 	}
 	defer s.continueProcess()
 
-	log.Printf("!!! ListFunctions...")
 	funcs, err := s.client.ListFunctions(in.Filter)
-	log.Printf("!!! ListFunctions... %v", err)
 	if err != nil {
 		return err
 	}
 	out.Funcs = funcs
+	return nil
+}
+
+func (s *Server) ListTypes(in agentrpc.ListTypesIn, out *agentrpc.ListTypesOut) error {
+	_ /* state */, err := s.client.Halt()
+	if err != nil {
+		panic(err)
+	}
+	defer s.continueProcess()
+
+	types, err := s.client.ListTypes(in.Filter)
+	if err != nil {
+		return err
+	}
+	out.Types = types
 	return nil
 }
 

@@ -7,8 +7,10 @@
 #     # 'executeRead': 'ba.Requests[0].Value.(*kvpb.RequestUnion_Get).Get'
 # }
 frames_of_interest = {
-    $frames_spec
+$frames_spec
 }
+
+type_specs = $type_specs
 
 goroutine_status_to_string = {
     0: "idle",
@@ -40,6 +42,7 @@ def serialize_backtrace(gid, limit):
         if i == limit:
             break
     return backtrace
+
 
 # def getSpanNameFromCtx(gid, frame_idx, lastCtx):
 #     val = eval(
@@ -94,7 +97,8 @@ def gs():
                 frame_index = frame_index + 1
                 continue
             backtrace = backtrace + '%s()\n\t%s:%d +0x%x\n' % (
-                fun_name, f.Location.File, f.Location.Line, f.Location.PC - f.Location.Function.EntryPC)
+                fun_name, f.Location.File, f.Location.Line,
+                f.Location.PC - f.Location.Function.EntryPC)
             op = ""
             if len(f.CtxExpressions) > 0:
                 op = f.CtxExpressions[1]
@@ -125,11 +129,17 @@ def gs():
             val = eval(
                 {"GoroutineID": frame.gid, "Frame": frame.frame_index},
                 expr,
-                {"FollowPointers": True, "MaxVariableRecurse": 2, "MaxStringLen": 100,
-                 "MaxArrayValues": 10, "MaxStructFields": 100}
+                {
+                    "FollowPointers": True,
+                    "FollowInterfaces": True,
+                    "MaxVariableRecurse": 2, "MaxStringLen": 100,
+                    "MaxArrayValues": 10, "MaxStructFields": 100,
+                    "KnownTypes": type_specs,
+                }
             ).Variable.Value
             vars.setdefault(frame.gid, {})
             vars[frame.gid].setdefault(frame.output_frame_index, [])
+            # NOTE: str(val) calls Variable.SinglelineString(), which stringifies variables.
             vars[frame.gid][frame.output_frame_index].append({"Expr": expr, "Val": str(val)})
 
     print("looked at #goroutines: ", len(gs))
