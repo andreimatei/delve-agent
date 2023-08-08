@@ -1,0 +1,135 @@
+syntax = "proto3";
+package agentrpc;
+option go_package = "github.com/andreimatei/delve-agent/agentrpc";
+
+message GetTypeInfoIn {
+  // binary_id identifies the binary for which type information is requested.
+  int64 binary_id = 1;
+  string type_name = 2;
+}
+
+message FieldInfo {
+  string field_name = 1;
+  string type_name = 2;
+  // embedded is set for Golang types if this field is embedded in its parent
+  // type.
+  bool embedded = 3;
+}
+
+message GetTypeInfoOut {
+  repeated FieldInfo fields = 1;
+}
+
+message VarInfo {
+  // The name of the variable.
+  string var_name = 1;
+  string type_name = 2;
+  // FormalParameter is set for function arguments, as opposed to other
+  // variables.
+  bool formal_parameter = 3;
+  // loclist_available is set if there is a loclist for this variable covering
+  // the query's program counter. The loclist has to cover the variable in its
+  // entirety; a loclist cover only part of the variable is not sufficient.
+  bool loclist_available = 4;
+}
+
+message TypeInfo {
+  string name = 1;
+  // has_fields is set for non-empty structs (i.e. structs with one or more
+  // fields) to indicate that the type has children.
+  bool has_fields = 2;
+  // The fields of the type. This is only set if has_fields is set and
+  // fields_not_loaded is not set.
+  repeated FieldInfo fields = 3;
+  // fields_not_loaded is set if `fields` has been left empty even though the
+  // type does have fields because the recursion limit was reached.
+  bool fields_not_loaded = 4;
+}
+
+// ListVarsIn is the input to the ListVars RPC. It specifies a code location for
+// which variable information is requested. The location is specified as the
+// encompassing function, and the program counter offset from the beginning of
+// the function.
+message ListVarsIn {
+  // binary_id identifies the binary for which variable information is requested.
+  int64 binary_id = 1;
+  string func_name = 2;
+  // The program counter offset from the beginning on the function. O means the
+  // very beginning of the function, effectively making only the function
+  // arguments available.
+  int64 pc_offset = 3;
+  // The maximum number of levels of recursive exploration for type definitions.
+  // 0 means that only they types of the variables are returned, but not their
+  // fields.
+  // Exploration of pointer types does not count towards this limit. For
+  // example, if a variable has type *main.T, only main.T will be included in
+  // the result, and going from *T to T does not consume one recursion level.
+  int32 type_recursion_limit = 4;
+}
+
+// ListVarsOut is the output of the ListVars RPC. It contains information on variables
+// in scope at the specified code location. The variables are returned in
+message ListVarsOut {
+  repeated VarInfo vars = 1;
+  
+  // types contains the definitions of the types used by either the variables in
+  // `vars`, or one or more of their fields, recursively. The map is keyed by
+  // type name.
+  // 
+  // The query specified a limit for the recursion, so some types might not be
+  // fully loaded (see `fields_not_loaded`).
+  //
+  // Pointer types are NOT included in these results. If a variable or field has
+  // type *main.T, types will contain the definition of `main.T`, and the client
+  // infers that the respective variable is a pointer based on its type name
+  // starting with '*'.
+  map<string,TypeInfo> types = 2;
+}
+
+message ListFunctionsIn {
+  // binary_id identifies the binary for which function information is requested.
+  int64 binary_id = 1;
+  // filter, if not empty, specifies a string that needs to be contained in a
+  // function name for it to be included in the result.
+  // TODO: smart case?
+  string filter = 2;
+  // The maximum number of results. 0 means no limit.
+  int32 limit = 3;
+}
+
+message ListFunctionsOut {
+  repeated string Funcs = 1;
+}
+
+// ListTypesIn and ListTypesOut mimic the corresponding RPC from Delve.
+message ListTypesIn {
+  // binary_id identifies the binary for which types information is requested.
+  int64 binary_id = 1;
+  // filter, if not empty, specifies a string that needs to be contained in a
+  // function name for it to be included in the result.
+  // TODO: smart case?
+  string filter = 2;
+  // The maximum number of results. 0 means no limit.
+  int32 limit = 3;
+}
+
+message ListTypesOut {
+	repeated string Types = 1;
+}
+
+service DebugInfo {
+  // ListFunctions lists all functions in the target binary.
+  rpc ListFunctions(ListFunctionsIn) returns (ListFunctionsOut);
+  // ListTypes lists types in the target binary. Pointer types are not listed;
+  // for example, only main.T is listed, not also *main.T.
+  rpc ListTypes(ListTypesIn) returns (ListTypesOut);
+  // GetTypeInfo returns information on one type.
+  rpc GetTypeInfo(GetTypeInfoIn) returns (GetTypeInfoOut);
+  // ListVars returns information on the variables in scope at the specified
+  // code location. Information on both the variables and their types is
+  // included in the response.
+  //
+  // Note that variables not available for collection may be included in the
+  // result; loclist_available will be false for such variables.
+  rpc ListVars(ListVarsIn) returns (ListVarsOut);
+}

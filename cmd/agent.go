@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/go-delve/delve/service/api"
 	"github.com/kr/pretty"
+	"google.golang.org/grpc"
 	"log"
 	"net"
 	"net/http"
@@ -20,7 +22,130 @@ import (
 
 var delveAddrFlag = flag.String("addr", "127.0.0.1:45689", "")
 var listenAddrFlag = flag.String("listen", "127.0.0.1:1234", "")
+var grpclistenAddrFlag = flag.String("listen-grpc", "127.0.0.1:1235", "")
 var oneShot = flag.Bool("oneshot", false, "")
+
+type grpcServer struct {
+	agentrpc.UnsafeDebugInfoServer
+	client *rpc2.RPCClient
+}
+
+var _ agentrpc.DebugInfoServer = &grpcServer{}
+
+func (s *grpcServer) haltTarget() (resume func()) {
+	_ /* state */, err := s.client.Halt()
+	if err != nil {
+		panic(err)
+	}
+	return s.continueTarget
+}
+
+func (s *grpcServer) continueTarget() {
+	// Continue blocks, so we do it on a different goroutine that leaks.
+	go func() {
+		ch := s.client.Continue()
+		_ = ch
+		//for state := range ch {
+		//	log.Printf("got state: %s", pretty.Sprint(state))
+		//}
+		//log.Print("finished with continue; channel closed")
+	}()
+}
+
+func (s *grpcServer) ListFunctions(ctx context.Context, args *agentrpc.ListFunctionsIn) (*agentrpc.ListFunctionsOut, error) {
+	defer s.haltTarget()()
+
+	funcs, err := s.client.ListFunctions(args.Filter)
+	if err != nil {
+		return nil, err
+	}
+	if args.Limit > 0 && len(funcs) > int(args.Limit) {
+		funcs = funcs[:args.Limit]
+	}
+	return &agentrpc.ListFunctionsOut{Funcs: funcs}, nil
+}
+
+func (s *grpcServer) ListTypes(ctx context.Context, args *agentrpc.ListTypesIn) (*agentrpc.ListTypesOut, error) {
+	defer s.haltTarget()()
+
+	types, err := s.client.ListTypes(args.Filter)
+	if err != nil {
+		return nil, err
+	}
+	if args.Limit > 0 && len(types) > int(args.Limit) {
+		types = types[:args.Limit]
+	}
+	return &agentrpc.ListTypesOut{Types: types}, nil
+}
+
+func (s *grpcServer) GetTypeInfo(ctx context.Context, in *agentrpc.GetTypeInfoIn) (*agentrpc.GetTypeInfoOut, error) {
+	// Halt the target and defer the resumption.
+	defer s.haltTarget()()
+
+	typ, err := s.client.GetTypeInfo(in.TypeName)
+	if err != nil {
+		return nil, err
+	}
+
+	fieldsList := make([]*agentrpc.FieldInfo, len(typ.Fields))
+	for j, f := range typ.Fields {
+		fieldsList[j] = &agentrpc.FieldInfo{
+			FieldName: f.Name,
+			TypeName:  f.TypeName,
+			Embedded:  f.Embedded,
+		}
+	}
+
+	out := &agentrpc.GetTypeInfoOut{
+		Fields: fieldsList,
+	}
+	return out, nil
+}
+
+func (s *grpcServer) ListVars(ctx context.Context, in *agentrpc.ListVarsIn) (*agentrpc.ListVarsOut, error) {
+	// Halt the target and defer the resumption.
+	defer s.haltTarget()()
+
+	vars, types, err := s.client.ListAvailableVariables(in.FuncName, in.PcOffset, int(in.TypeRecursionLimit), -1 /* maxTypes */, 10 /* maxFieldsPerStruct */)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert from the Delve response to our format.
+	varsList := make([]*agentrpc.VarInfo, len(vars))
+	for i, v := range vars {
+		varsList[i] = &agentrpc.VarInfo{
+			VarName:          v.Name,
+			TypeName:         v.Type,
+			FormalParameter:  v.FormalParameter,
+			LoclistAvailable: v.LoclistAvailable,
+		}
+	}
+	typesMap := make(map[string]*agentrpc.TypeInfo, len(types))
+	for _, typ := range types {
+		fieldsList := make([]*agentrpc.FieldInfo, len(typ.Fields))
+		for j, f := range typ.Fields {
+			fieldsList[j] = &agentrpc.FieldInfo{
+				FieldName: f.Name,
+				TypeName:  f.TypeName,
+				Embedded:  f.Embedded,
+			}
+		}
+		typesMap[typ.Name] = &agentrpc.TypeInfo{
+			Name: typ.Name,
+			// TODO(andrei): We're not actually getting the HasFields value from
+			// Delve, so we're approximating it.
+			HasFields:       typ.FieldsNotLoaded || len(typ.Fields) > 0,
+			Fields:          fieldsList,
+			FieldsNotLoaded: typ.FieldsNotLoaded,
+		}
+	}
+
+	return &agentrpc.ListVarsOut{
+		Vars:  varsList,
+		Types: typesMap,
+	}, nil
+}
 
 type Server struct {
 	client *rpc2.RPCClient
@@ -141,96 +266,6 @@ func typeSpecsToStarlark(specs []agentrpc.TypeSpec) string {
 	}
 	sb.WriteString("]")
 	return sb.String()
-}
-
-func (s *Server) ListVars(in agentrpc.ListVarsIn, out *agentrpc.ListVarsOut) error {
-	log.Printf("!!! ListVars...")
-	defer func() {
-		log.Printf("!!! ListVars... done")
-	}()
-
-	// !!! The halt is necessary, otherwise the RPC below blocks. Why?
-	_ /* state */, err := s.client.Halt()
-	if err != nil {
-		panic(err)
-	}
-	defer s.continueProcess()
-
-	vars, types, err := s.client.ListAvailableVariables(in.Func, in.PCOff, 3 /* typeLevels */, -1 /* maxTypes */, 10 /* maxFieldsPerStruct */)
-	if err != nil {
-		log.Printf("!!! ListVars... err: %s", err)
-		return err
-	}
-	out.Vars = vars
-	out.Types = types
-	//for _, t := range types {
-	//	log.Printf("!!! got type: %s loaded: %t", t.Name, !t.FieldsNotLoaded)
-	//}
-	//out.Vars = make([]agentrpc.VarInfo, len(vars))
-	//for i, v := range vars {
-	//	out.Vars[i] = agentrpc.VarInfo{
-	//		Name:    v.Name,
-	//		VarType: v.VarType,
-	//		Type:    convertType(v.),
-	//	}
-	//}
-	return nil
-}
-
-func (s *Server) GetTypeInfo(in agentrpc.GetTypeInfoIn, out *agentrpc.GetTypeInfoOut) error {
-	log.Printf("!!! GetTypeInfo: %s", in.Name)
-
-	_ /* state */, err := s.client.Halt()
-	if err != nil {
-		panic(err)
-	}
-	defer s.continueProcess()
-
-	typ, err := s.client.GetTypeInfo(in.Name)
-	if err != nil {
-		log.Printf("!!! GetTypeInfo... err: %s", err)
-		return err
-	}
-	log.Printf("!!! response: %+v", typ)
-	out.Fields = make([]agentrpc.FieldInfo, len(typ.Fields))
-	for i, f := range typ.Fields {
-		out.Fields[i] = agentrpc.FieldInfo{
-			Name:     f.Name,
-			TypeName: f.TypeName,
-			Embedded: f.Embedded,
-		}
-	}
-	return nil
-}
-
-func (s *Server) ListFunctions(in agentrpc.ListFunctionsIn, out *agentrpc.ListFunctionsOut) error {
-	_ /* state */, err := s.client.Halt()
-	if err != nil {
-		panic(err)
-	}
-	defer s.continueProcess()
-
-	funcs, err := s.client.ListFunctions(in.Filter)
-	if err != nil {
-		return err
-	}
-	out.Funcs = funcs
-	return nil
-}
-
-func (s *Server) ListTypes(in agentrpc.ListTypesIn, out *agentrpc.ListTypesOut) error {
-	_ /* state */, err := s.client.Halt()
-	if err != nil {
-		panic(err)
-	}
-	defer s.continueProcess()
-
-	types, err := s.client.ListTypes(in.Filter)
-	if err != nil {
-		return err
-	}
-	out.Types = types
-	return nil
 }
 
 func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, out *agentrpc.ReconcileFLightRecorderOut) error {
@@ -373,6 +408,9 @@ func main() {
 	//	pretty.Print(s)
 	//}
 
+	grpcSrv := grpc.NewServer()
+	agentrpc.RegisterDebugInfoServer(grpcSrv, &grpcServer{client: client})
+
 	srv := &Server{client: client}
 	if err := rpc.RegisterName("Agent", srv); err != nil {
 		panic(err)
@@ -382,6 +420,14 @@ func main() {
 	if e != nil {
 		log.Fatal("listen error:", e)
 	}
+	go func() {
+		l, e := net.Listen("tcp", *grpclistenAddrFlag)
+		if e != nil {
+			log.Fatal("listen error:", e)
+		}
+		log.Printf("Serving gRPC on %s", *grpclistenAddrFlag)
+		grpcSrv.Serve(l)
+	}()
 	_ = http.Serve(l, nil)
 }
 
