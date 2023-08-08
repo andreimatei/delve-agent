@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/go-delve/delve/service/api"
 	"github.com/kr/pretty"
+	pp "github.com/maruel/panicparse/v2/stack"
 	"google.golang.org/grpc"
+	"hash/fnv"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -27,10 +31,12 @@ var oneShot = flag.Bool("oneshot", false, "")
 
 type grpcServer struct {
 	agentrpc.UnsafeDebugInfoServer
+	agentrpc.UnsafeSnapshotServiceServer
 	client *rpc2.RPCClient
 }
 
 var _ agentrpc.DebugInfoServer = &grpcServer{}
+var _ agentrpc.SnapshotServiceServer = &grpcServer{}
 
 func (s *grpcServer) haltTarget() (resume func()) {
 	_ /* state */, err := s.client.Halt()
@@ -145,6 +151,138 @@ func (s *grpcServer) ListVars(ctx context.Context, in *agentrpc.ListVarsIn) (*ag
 		Vars:  varsList,
 		Types: typesMap,
 	}, nil
+}
+
+func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn) (*agentrpc.GetSnapshotOut, error) {
+	// Halt the target and defer the resumption.
+	defer s.haltTarget()()
+
+	starScript, err := os.ReadFile("walk_stacks.star")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Parameterize the script with the frames of interest.
+	var sb strings.Builder
+	for frame, exprs := range in.FramesSpec {
+		sb.WriteString(fmt.Sprintf("'%s': [", frame))
+		for i, expr := range exprs {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(fmt.Sprintf("'%s'", expr))
+		}
+		sb.WriteString("],\n")
+	}
+	// Run the script.
+	script := strings.Replace(string(starScript), "$frames_spec", sb.String(), 1)
+	typeSpecs := typeSpecsToStarlark(in.TypeSpecs)
+	log.Printf("typeSpecs: %s", typeSpecs)
+	script = strings.Replace(script, "$type_specs", typeSpecsToStarlark(in.TypeSpecs), 1)
+
+	scriptRes, err := s.client.ExecScript(script)
+	if err != nil {
+		return nil, fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
+	}
+	unquoted, err := strconv.Unquote(scriptRes.Val)
+	if err != nil {
+		panic(err)
+	}
+	// Unmarshal the script results.
+	var snap scriptResults
+	err = json.Unmarshal([]byte(unquoted), &snap)
+	if err != nil {
+		log.Printf("%v. failed to decode: %s", err, unquoted)
+		panic(err)
+	}
+
+	// Read the flight recorder data and attach it to the results.
+	frData, err := s.client.GetFlightRecorderData()
+	if err != nil {
+		return err
+	}
+
+	out.Snapshot = agentrpc.Snapshot{
+		Stacks:             snap.Stacks,
+		FramesOfInterest:   snap.FramesOfInterest,
+		FlightRecorderData: frData.Data,
+	}
+	return nil
+}
+
+func scriptResultsToPProf(stacks map[int]string) (*agentrpc.Profile, error) {
+	var res agentrpc.Profile
+	stacksStr := stacksToString(stacks)
+	// Parse the stacks.
+	opts := pp.DefaultOpts()
+	opts.ParsePC = true
+	snap, _, err := pp.ScanSnapshot(strings.NewReader(stacksStr), io.Discard, opts)
+	if err != nil {
+		return nil, err
+	}
+	agg := snap.Aggregate(pp.AnyValue)
+
+	for _, group := range agg.Buckets {
+		// Convert the stack to locations.
+		for i, c := range group.Signature.Stack.Calls {
+		}
+
+		sample := &agentrpc.Sample{
+			LocationId: nil,
+			Value:      nil,
+			Label:      nil,
+		}
+	}
+	return &res
+}
+
+// Returns the ID of the location.
+func getOrAddLocationToProfile(profile *agentrpc.Profile, locationMap map[uint64]bool, functionMap map[uint64]bool, call pp.Call) uint64 {
+	h := fnv.New64()
+	h.Write([]byte(call.Func.Name))
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(call.PCOffset))
+	h.Write(b[:])
+	hash := h.Sum64()
+
+	if _, ok := locationMap[hash]; !ok {
+		locationMap[hash] = true
+		profile.Location = append(profile.Location, &agentrpc.Location{
+			Id:        hash,
+			MappingId: 0,    // TODO
+			Address:   hash, // HACK
+			Line: []*agentrpc.Line{{
+				FunctionId: getOrAddFunctionToProfile(profile, functionMap, call),
+				Line:       int64(call.Line),
+			}},
+			IsFolded: false,
+		})
+	}
+}
+
+func getOrAddFunctionToProfile(profile *agentrpc.Profile, functionMap map[uint64]bool, call pp.Call) uint64 {
+	h := fnv.New64()
+	h.Write([]byte(call.Func.Name))
+	hash := h.Sum64()
+
+	if _, ok := functionMap[hash]; !ok {
+		functionMap[hash] = true
+		profile.Function = append(profile.Function, &agentrpc.Function{
+			Id:         hash,
+			Name:       getOrAddStringToProfile(call.Func.Name),
+			SystemName: getOrAddStringToProfile(""),
+			Filename:   call.RemoteSrcPath,
+			StartLine:  0,
+		})
+	}
+
+	return hash
+}
+
+func getOrAddStringToProfile(s string) {
+	if s == "" {
+		return 0 // pprof mandates the empty string be the first one.
+	}
 }
 
 type Server struct {
@@ -265,6 +403,17 @@ func typeSpecsToStarlark(specs []agentrpc.TypeSpec) string {
 		sb.WriteString("]},\n}\n")
 	}
 	sb.WriteString("]")
+	return sb.String()
+}
+
+func stacksToString(stacks map[int]string) string {
+	var sb strings.Builder
+	// We ignore the goroutine ID map key; the stacks themselves start by
+	// identifying the goroutine.
+	for _, stack := range stacks {
+		sb.WriteString(stack)
+		sb.WriteRune('\n')
+	}
 	return sb.String()
 }
 
@@ -409,7 +558,9 @@ func main() {
 	//}
 
 	grpcSrv := grpc.NewServer()
-	agentrpc.RegisterDebugInfoServer(grpcSrv, &grpcServer{client: client})
+	serverImpl := &grpcServer{client: client}
+	agentrpc.RegisterDebugInfoServer(grpcSrv, serverImpl)
+	agentrpc.RegisterSnapshotServiceServer(grpcSrv, serverImpl)
 
 	srv := &Server{client: client}
 	if err := rpc.RegisterName("Agent", srv); err != nil {

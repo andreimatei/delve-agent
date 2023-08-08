@@ -1,6 +1,6 @@
-Rebuild protos with:
+#!/bin/bash
+set -eux
 
-```shell
 protoc \
   --go_out=./agentrpc \
   --go-grpc_out=./agentrpc \
@@ -10,4 +10,3 @@ protoc \
   --go_opt=Mprofile.proto=github.com/andreimatei/delve-agent/agentrpc \
   --go-grpc_opt=Mprofile.proto=github.com/andreimatei/delve-agent/agentrpc \
   agentrpc/rpc.proto agentrpc/profile.proto
-```

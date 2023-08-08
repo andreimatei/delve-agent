@@ -2,6 +2,8 @@ syntax = "proto3";
 package agentrpc;
 option go_package = "github.com/andreimatei/delve-agent/agentrpc";
 
+import "profile.proto";
+
 message GetTypeInfoIn {
   // binary_id identifies the binary for which type information is requested.
   int64 binary_id = 1;
@@ -132,4 +134,17 @@ service DebugInfo {
   // Note that variables not available for collection may be included in the
   // result; loclist_available will be false for such variables.
   rpc ListVars(ListVarsIn) returns (ListVarsOut);
+}
+
+message GetSnapshotIn {
+  // binary_id identifies the binary for which function information is requested.
+  int64 binary_id = 1;
+}
+
+message GetSnapshotOut {
+  perftools.profiles.Profile profile = 1;
+}
+
+service SnapshotService {
+  rpc GetSnapshot(GetSnapshotIn) returns (GetSnapshotOut);
 }
