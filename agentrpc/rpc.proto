@@ -73,7 +73,7 @@ message ListVarsIn {
 // in scope at the specified code location. The variables are returned in
 message ListVarsOut {
   repeated VarInfo vars = 1;
-  
+
   // types contains the definitions of the types used by either the variables in
   // `vars`, or one or more of their fields, recursively. The map is keyed by
   // type name.
@@ -85,7 +85,7 @@ message ListVarsOut {
   // type *main.T, types will contain the definition of `main.T`, and the client
   // infers that the respective variable is a pointer based on its type name
   // starting with '*'.
-  map<string,TypeInfo> types = 2;
+  map<string, TypeInfo> types = 2;
 }
 
 message ListFunctionsIn {
@@ -116,7 +116,7 @@ message ListTypesIn {
 }
 
 message ListTypesOut {
-	repeated string Types = 1;
+  repeated string Types = 1;
 }
 
 service DebugInfo {
@@ -136,13 +136,48 @@ service DebugInfo {
   rpc ListVars(ListVarsIn) returns (ListVarsOut);
 }
 
+message FrameSpec {
+  string func_name = 1;
+  repeated string expressions = 2;
+}
+
+message TypeSpec {
+  string type_name = 1;
+  bool collect_all = 2;
+  repeated string expressions = 3;
+}
+
 message GetSnapshotIn {
   // binary_id identifies the binary for which function information is requested.
   int64 binary_id = 1;
+  // FrameSpec maps from function name to list of expressions to evaluate and
+  // collect.
+  repeated FrameSpec frame_specs = 2;
+  // TypeSpecs contains specific instructions about what to collect when one of
+  // these types is encountered.
+  repeated TypeSpec type_specs = 3;
+}
+
+message CapturedExpression {
+  string expression = 1;
+  string value = 2;
+}
+
+message FrameData {
+  int64 goroutine_id = 1;
+  int64 frame_idx = 2;
+  repeated CapturedExpression captured_exprs = 3;
 }
 
 message GetSnapshotOut {
   perftools.profiles.Profile profile = 1;
+  //  // Map from goroutine ID to map from frame index to array of captured values.
+  //  // The frame indexes match the order in Stacks - from leaf function to
+  //  // callers.
+  repeated FrameData frame_data = 2;
+  //  // FlightRecorderData is a dump of the recorded data. The recorded data consists
+  //  // of a map from key to buffer representing the latest events with that key.
+  //  FlightRecorderData map[string][]string
 }
 
 service SnapshotService {

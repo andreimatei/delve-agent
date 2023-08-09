@@ -1,49 +1,52 @@
 package agentrpc
 
+const GoroutineIDLabel = "goroutine ID"
+
 // input and output of RPCs. In a separate package because they're shared with
 // client services.
 
-type Snapshot struct {
-	Stacks map[int]string
-	// Map from goroutine ID to map from frame index to array of captured values.
-	// The frame indexes match the order in Stacks - from leaf function to
-	// callers.
-	FramesOfInterest map[int]map[int][]CapturedExpr
-	// FlightRecorderData is a dump of the recorded data. The recorded data consists
-	// of a map from key to buffer representing the latest events with that key.
-	FlightRecorderData map[string][]string
-}
+//type Snapshot struct {
+//	Stacks map[int]string
+//	// Map from goroutine ID to map from frame index to array of captured values.
+//	// The frame indexes match the order in Stacks - from leaf function to
+//	// callers.
+//	FramesOfInterest map[int]map[int][]CapturedExpr
+//	// FlightRecorderData is a dump of the recorded data. The recorded data consists
+//	// of a map from key to buffer representing the latest events with that key.
+//	FlightRecorderData map[string][]string
+//}
+//
 
 type CapturedExpr struct {
 	Expr string
 	Val  string
 }
 
-type LoadSpec struct {
-	// CollectAll indicates that all fields should be collected.
-	CollectAll bool
-	// Expressions is a list of expressions to evaluate and collect, in addition
-	// to everything collected by CollectAll (if specified).
-	Expressions []string
-}
+//type LoadSpec struct {
+//	// CollectAll indicates that all fields should be collected.
+//	CollectAll bool
+//	// Expressions is a list of expressions to evaluate and collect, in addition
+//	// to everything collected by CollectAll (if specified).
+//	Expressions []string
+//}
+//
+//type TypeSpec struct {
+//	TypeName string
+//	LoadSpec LoadSpec
+//}
 
-type TypeSpec struct {
-	TypeName string
-	LoadSpec LoadSpec
-}
-
-type GetSnapshotIn struct {
-	// FramesSpec maps from function name to list of expressions to evaluate and
-	// collect.
-	FramesSpec map[string][]string
-	// TypeSpecs contains specific instructions about what to collect when one of
-	// these types is encountered.
-	TypeSpecs []TypeSpec
-}
-
-type GetSnapshotOut struct {
-	Snapshot Snapshot
-}
+//type GetSnapshotIn struct {
+//	// FramesSpec maps from function name to list of expressions to evaluate and
+//	// collect.
+//	FramesSpec map[string][]string
+//	// TypeSpecs contains specific instructions about what to collect when one of
+//	// these types is encountered.
+//	TypeSpecs []TypeSpec
+//}
+//
+//type GetSnapshotOut struct {
+//	Snapshot Snapshot
+//}
 
 // !!!
 //type ListVarsIn struct {

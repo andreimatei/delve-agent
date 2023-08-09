@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"github.com/kr/pretty"
 	pp "github.com/maruel/panicparse/v2/stack"
 	"google.golang.org/grpc"
-	"hash/fnv"
 	"io"
 	"log"
 	"net"
@@ -19,6 +17,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/andreimatei/delve-agent/agentrpc"
 	"github.com/go-delve/delve/service/rpc2"
@@ -153,65 +152,65 @@ func (s *grpcServer) ListVars(ctx context.Context, in *agentrpc.ListVarsIn) (*ag
 	}, nil
 }
 
-func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn) (*agentrpc.GetSnapshotOut, error) {
-	// Halt the target and defer the resumption.
-	defer s.haltTarget()()
-
-	starScript, err := os.ReadFile("walk_stacks.star")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Parameterize the script with the frames of interest.
-	var sb strings.Builder
-	for frame, exprs := range in.FramesSpec {
-		sb.WriteString(fmt.Sprintf("'%s': [", frame))
-		for i, expr := range exprs {
-			if i > 0 {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(fmt.Sprintf("'%s'", expr))
-		}
-		sb.WriteString("],\n")
-	}
-	// Run the script.
-	script := strings.Replace(string(starScript), "$frames_spec", sb.String(), 1)
-	typeSpecs := typeSpecsToStarlark(in.TypeSpecs)
-	log.Printf("typeSpecs: %s", typeSpecs)
-	script = strings.Replace(script, "$type_specs", typeSpecsToStarlark(in.TypeSpecs), 1)
-
-	scriptRes, err := s.client.ExecScript(script)
-	if err != nil {
-		return nil, fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
-	}
-	unquoted, err := strconv.Unquote(scriptRes.Val)
-	if err != nil {
-		panic(err)
-	}
-	// Unmarshal the script results.
-	var snap scriptResults
-	err = json.Unmarshal([]byte(unquoted), &snap)
-	if err != nil {
-		log.Printf("%v. failed to decode: %s", err, unquoted)
-		panic(err)
-	}
-
-	// Read the flight recorder data and attach it to the results.
-	frData, err := s.client.GetFlightRecorderData()
-	if err != nil {
-		return err
-	}
-
-	out.Snapshot = agentrpc.Snapshot{
-		Stacks:             snap.Stacks,
-		FramesOfInterest:   snap.FramesOfInterest,
-		FlightRecorderData: frData.Data,
-	}
-	return nil
-}
+// !!!
+//func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn) (*agentrpc.GetSnapshotOut, error) {
+//	// Halt the target and defer the resumption.
+//	defer s.haltTarget()()
+//
+//	starScript, err := os.ReadFile("walk_stacks.star")
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//
+//	// Parameterize the script with the frames of interest.
+//	var sb strings.Builder
+//	for frame, exprs := range in.FramesSpec {
+//		sb.WriteString(fmt.Sprintf("'%s': [", frame))
+//		for i, expr := range exprs {
+//			if i > 0 {
+//				sb.WriteString(", ")
+//			}
+//			sb.WriteString(fmt.Sprintf("'%s'", expr))
+//		}
+//		sb.WriteString("],\n")
+//	}
+//	// Run the script.
+//	script := strings.Replace(string(starScript), "$frames_spec", sb.String(), 1)
+//	typeSpecs := typeSpecsToStarlark(in.TypeSpecs)
+//	log.Printf("typeSpecs: %s", typeSpecs)
+//	script = strings.Replace(script, "$type_specs", typeSpecsToStarlark(in.TypeSpecs), 1)
+//
+//	scriptRes, err := s.client.ExecScript(script)
+//	if err != nil {
+//		return nil, fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
+//	}
+//	unquoted, err := strconv.Unquote(scriptRes.Val)
+//	if err != nil {
+//		panic(err)
+//	}
+//	// Unmarshal the script results.
+//	var snap scriptResults
+//	err = json.Unmarshal([]byte(unquoted), &snap)
+//	if err != nil {
+//		log.Printf("%v. failed to decode: %s", err, unquoted)
+//		panic(err)
+//	}
+//
+//	// Read the flight recorder data and attach it to the results.
+//	frData, err := s.client.GetFlightRecorderData()
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	out.Snapshot = agentrpc.Snapshot{
+//		Stacks:             snap.Stacks,
+//		FramesOfInterest:   snap.FramesOfInterest,
+//		FlightRecorderData: frData.Data,
+//	}
+//	return nil
+//}
 
 func scriptResultsToPProf(stacks map[int]string) (*agentrpc.Profile, error) {
-	var res agentrpc.Profile
 	stacksStr := stacksToString(stacks)
 	// Parse the stacks.
 	opts := pp.DefaultOpts()
@@ -221,68 +220,19 @@ func scriptResultsToPProf(stacks map[int]string) (*agentrpc.Profile, error) {
 		return nil, err
 	}
 	agg := snap.Aggregate(pp.AnyValue)
+	b := newPProfBuilder()
 
 	for _, group := range agg.Buckets {
 		// Convert the stack to locations.
+		locIDs := make([]uint64, len(group.Signature.Stack.Calls))
 		for i, c := range group.Signature.Stack.Calls {
+			locID := b.getOrAddLocation(c)
+			locIDs[i] = locID
 		}
-
-		sample := &agentrpc.Sample{
-			LocationId: nil,
-			Value:      nil,
-			Label:      nil,
-		}
+		b.addSample(locIDs, group.IDs)
 	}
-	return &res
-}
-
-// Returns the ID of the location.
-func getOrAddLocationToProfile(profile *agentrpc.Profile, locationMap map[uint64]bool, functionMap map[uint64]bool, call pp.Call) uint64 {
-	h := fnv.New64()
-	h.Write([]byte(call.Func.Name))
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(call.PCOffset))
-	h.Write(b[:])
-	hash := h.Sum64()
-
-	if _, ok := locationMap[hash]; !ok {
-		locationMap[hash] = true
-		profile.Location = append(profile.Location, &agentrpc.Location{
-			Id:        hash,
-			MappingId: 0,    // TODO
-			Address:   hash, // HACK
-			Line: []*agentrpc.Line{{
-				FunctionId: getOrAddFunctionToProfile(profile, functionMap, call),
-				Line:       int64(call.Line),
-			}},
-			IsFolded: false,
-		})
-	}
-}
-
-func getOrAddFunctionToProfile(profile *agentrpc.Profile, functionMap map[uint64]bool, call pp.Call) uint64 {
-	h := fnv.New64()
-	h.Write([]byte(call.Func.Name))
-	hash := h.Sum64()
-
-	if _, ok := functionMap[hash]; !ok {
-		functionMap[hash] = true
-		profile.Function = append(profile.Function, &agentrpc.Function{
-			Id:         hash,
-			Name:       getOrAddStringToProfile(call.Func.Name),
-			SystemName: getOrAddStringToProfile(""),
-			Filename:   call.RemoteSrcPath,
-			StartLine:  0,
-		})
-	}
-
-	return hash
-}
-
-func getOrAddStringToProfile(s string) {
-	if s == "" {
-		return 0 // pprof mandates the empty string be the first one.
-	}
+	b.profile.TimeNanos = time.Now().UnixNano()
+	return b.profile, nil
 }
 
 type Server struct {
@@ -312,13 +262,10 @@ type scriptResults struct {
 
 // GetSnapshot collects the stack traces of all the goroutines and the requested
 // data for the specified frames of interest.
-func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapshotOut) error {
+func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn) (*agentrpc.GetSnapshotOut, error) {
 	log.Printf("!!! GetSnapshot")
-	_ /* state */, err := s.client.Halt()
-	if err != nil {
-		panic(err)
-	}
-	defer s.continueProcess()
+	// Halt the target and defer the resumption.
+	defer s.haltTarget()()
 
 	starScript, err := os.ReadFile("walk_stacks.star")
 	if err != nil {
@@ -327,9 +274,9 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 
 	// Parameterize the script with the frames of interest.
 	var sb strings.Builder
-	for frame, exprs := range in.FramesSpec {
-		sb.WriteString(fmt.Sprintf("'%s': [", frame))
-		for i, expr := range exprs {
+	for _, frameSpec := range in.FrameSpecs {
+		sb.WriteString(fmt.Sprintf("'%s': [", frameSpec.FuncName))
+		for i, expr := range frameSpec.Expressions {
 			if i > 0 {
 				sb.WriteString(", ")
 			}
@@ -345,7 +292,7 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 
 	scriptRes, err := s.client.ExecScript(script)
 	if err != nil {
-		return fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
+		return nil, fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
 	}
 	unquoted, err := strconv.Unquote(scriptRes.Val)
 	if err != nil {
@@ -358,22 +305,44 @@ func (s *Server) GetSnapshot(in agentrpc.GetSnapshotIn, out *agentrpc.GetSnapsho
 		log.Printf("%v. failed to decode: %s", err, unquoted)
 		panic(err)
 	}
-
-	// Read the flight recorder data and attach it to the results.
-	frData, err := s.client.GetFlightRecorderData()
+	profile, err := scriptResultsToPProf(snap.Stacks)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	out.Snapshot = agentrpc.Snapshot{
-		Stacks:             snap.Stacks,
-		FramesOfInterest:   snap.FramesOfInterest,
-		FlightRecorderData: frData.Data,
+	var frameData []*agentrpc.FrameData
+	for gid, fois := range snap.FramesOfInterest {
+		for frameIdx, capturedExprs := range fois {
+			var data []*agentrpc.CapturedExpression
+			for _, v := range capturedExprs {
+				data = append(data, &agentrpc.CapturedExpression{
+					Expression: v.Expr,
+					Value:      v.Val,
+				})
+			}
+			frameData = append(frameData, &agentrpc.FrameData{
+				GoroutineId:   int64(gid),
+				FrameIdx:      int64(frameIdx),
+				CapturedExprs: data,
+			})
+		}
 	}
-	return nil
+
+	//// Read the flight recorder data and attach it to the results.
+	//frData, err := s.client.GetFlightRecorderData()
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	return &agentrpc.GetSnapshotOut{
+		Profile:   profile,
+		FrameData: frameData,
+		// !!!
+		//FlightRecorderData: frData.Data,
+	}, nil
 }
 
-func typeSpecsToStarlark(specs []agentrpc.TypeSpec) string {
+func typeSpecsToStarlark(specs []*agentrpc.TypeSpec) string {
 	// Generate a starlark list looking list this:
 	//	typeSpecs := `[
 	//	{
@@ -390,11 +359,11 @@ func typeSpecsToStarlark(specs []agentrpc.TypeSpec) string {
 		sb.WriteString("{\n")
 		sb.WriteString(fmt.Sprintf("\t\"TypeName\": \"%s\",\n", spec.TypeName))
 		collectAllStr := "False"
-		if spec.LoadSpec.CollectAll {
+		if spec.CollectAll {
 			collectAllStr = "True"
 		}
 		sb.WriteString(fmt.Sprintf("\t\"LoadSpec\": {\"CollectAll\": %s, \"Exprs\": [", collectAllStr))
-		for i, expr := range spec.LoadSpec.Expressions {
+		for i, expr := range spec.Expressions {
 			if i > 0 {
 				sb.WriteString(", ")
 			}
