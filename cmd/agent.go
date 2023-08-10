@@ -258,7 +258,7 @@ type scriptResults struct {
 // GetSnapshot collects the stack traces of all the goroutines and the requested
 // data for the specified frames of interest.
 func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn) (*agentrpc.GetSnapshotOut, error) {
-	log.Printf("!!! GetSnapshot")
+	log.Printf("!!! GetSnapshot...")
 	// Halt the target and defer the resumption.
 	defer s.haltTarget()()
 
@@ -287,8 +287,12 @@ func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn
 
 	scriptRes, err := s.client.ExecScript(script)
 	if err != nil {
+		log.Printf("script failed: %v\nOutput:%s", err, scriptRes.Output)
 		return nil, fmt.Errorf("executing script failed: %w\nOutput:%s", err, scriptRes.Output)
 	}
+
+	log.Printf("!!! script output: %s", scriptRes.Output)
+
 	unquoted, err := strconv.Unquote(scriptRes.Val)
 	if err != nil {
 		panic(err)

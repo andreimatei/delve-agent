@@ -64,7 +64,7 @@ def gs():
     # strings.
     vars = {}
     for g in gs:
-        print("======= GOROUTINE ", g.ID)
+        # print("======= GOROUTINE ", g.ID)
         stack = stacktrace(g.ID,
                            200,  # depth
                            False,  # full
@@ -99,10 +99,10 @@ def gs():
             backtrace = backtrace + '%s()\n\t%s:%d +0x%x\n' % (
                 fun_name, f.Location.File, f.Location.Line,
                 f.Location.PC - f.Location.Function.EntryPC)
-            op = ""
-            if len(f.CtxExpressions) > 0:
-                op = f.CtxExpressions[1]
-            print(g.ID, fun_name, op, len(f.CtxExpressions))
+            # op = ""
+            # if len(f.CtxExpressions) > 0:
+            #     op = f.CtxExpressions[1]
+            # print(g.ID, fun_name, op, len(f.CtxExpressions))
             for function_of_interest in frames_of_interest:
                 if f.Location.Function.Name_.endswith(function_of_interest):
                     recognized_frames.append(struct(

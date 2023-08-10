@@ -163,8 +163,10 @@ message CapturedExpression {
   string value = 2;
 }
 
+// FrameData represents the data captured for a single stack frame.
 message FrameData {
   int64 goroutine_id = 1;
+  // The index of the frame in the stack. 0 is the leaf function.
   int64 frame_idx = 2;
   repeated CapturedExpression captured_exprs = 3;
 }

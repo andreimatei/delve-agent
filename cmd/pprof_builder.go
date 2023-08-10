@@ -102,7 +102,14 @@ func (b *pprofBuilder) getOrAddLocation(call pp.Call) *profile.Location {
 }
 
 func (b *pprofBuilder) getOrAddFunction(call pp.Call) *profile.Function {
-	funcName := call.Func.Name
+	// We consider the package name (not qualified with the full path) plus the
+	// function name (or, for methods, the receiver type and method name) to be
+	// the function name. The package name will be used by the flamegraph to color
+	// functions from the same package the same.
+	// For example:
+	// github.com/cockroachdb/pebble/record.NewLogWriter           -> record.NewLogWriter
+	// github.com/cockroachdb/pebble/record.(*LogWriter).flushLoop -> record.(*LogWriter).flushLoop
+	funcName := call.Func.DirName + "." + call.Func.Name
 	h := fnv.New64()
 	h.Write([]byte(funcName))
 	hash := h.Sum64()
@@ -112,8 +119,8 @@ func (b *pprofBuilder) getOrAddFunction(call pp.Call) *profile.Function {
 	}
 	function := &profile.Function{
 		ID:         hash,
-		Name:       call.Func.Name,
-		SystemName: "",
+		Name:       funcName,
+		SystemName: call.Func.Complete,
 		Filename:   call.RemoteSrcPath,
 		StartLine:  0,
 	}
