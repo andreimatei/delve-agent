@@ -85,6 +85,7 @@ func (s *grpcServer) ListTypes(ctx context.Context, args *agentrpc.ListTypesIn) 
 }
 
 func (s *grpcServer) GetTypeInfo(ctx context.Context, in *agentrpc.GetTypeInfoIn) (*agentrpc.GetTypeInfoOut, error) {
+	fmt.Printf("GetTypeInfo...")
 	// Halt the target and defer the resumption.
 	defer s.haltTarget()()
 
