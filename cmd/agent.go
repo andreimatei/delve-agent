@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/go-delve/delve/service/api"
+	"github.com/google/pprof/profile"
 	"github.com/kr/pretty"
 	pp "github.com/maruel/panicparse/v2/stack"
 	"google.golang.org/grpc"
@@ -210,26 +211,20 @@ func (s *grpcServer) ListVars(ctx context.Context, in *agentrpc.ListVarsIn) (*ag
 //	return nil
 //}
 
-func scriptResultsToPProf(stacks map[int]string) (*agentrpc.Profile, error) {
+func scriptResultsToPProf(stacks map[int]string) (*profile.Profile, error) {
 	stacksStr := stacksToString(stacks)
 	// Parse the stacks.
 	opts := pp.DefaultOpts()
 	opts.ParsePC = true
 	snap, _, err := pp.ScanSnapshot(strings.NewReader(stacksStr), io.Discard, opts)
-	if err != nil {
-		return nil, err
+	if err != io.EOF {
+		return nil, fmt.Errorf("failed to scan stacks: %w", err)
 	}
 	agg := snap.Aggregate(pp.AnyValue)
 	b := newPProfBuilder()
 
 	for _, group := range agg.Buckets {
-		// Convert the stack to locations.
-		locIDs := make([]uint64, len(group.Signature.Stack.Calls))
-		for i, c := range group.Signature.Stack.Calls {
-			locID := b.getOrAddLocation(c)
-			locIDs[i] = locID
-		}
-		b.addSample(locIDs, group.IDs)
+		b.addSample(group.Signature.Stack.Calls, group.IDs)
 	}
 	b.profile.TimeNanos = time.Now().UnixNano()
 	return b.profile, nil
@@ -307,7 +302,7 @@ func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn
 	}
 	profile, err := scriptResultsToPProf(snap.Stacks)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse script results: %w", err)
 	}
 
 	var frameData []*agentrpc.FrameData
@@ -334,8 +329,10 @@ func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn
 	//	return nil, err
 	//}
 
+	log.Printf("!!! about to return")
+
 	return &agentrpc.GetSnapshotOut{
-		Profile:   profile,
+		Profile:   profileToProto(profile),
 		FrameData: frameData,
 		// !!!
 		//FlightRecorderData: frData.Data,

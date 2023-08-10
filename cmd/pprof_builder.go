@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"github.com/andreimatei/delve-agent/agentrpc"
+	"github.com/google/pprof/profile"
 	pp "github.com/maruel/panicparse/v2/stack"
+	"google.golang.org/protobuf/proto"
 	"hash/fnv"
 )
 
@@ -14,64 +17,59 @@ type locationKey struct {
 
 type pprofBuilder struct {
 	// profile is the profile being populated.
-	profile *agentrpc.Profile
+	profile *profile.Profile
 	// functionMap keeps track of all functions in profile, mapping the function
-	// name to location ID.
-	functionMap map[string]uint64
+	// name to *Function.
+	functionMap map[string]*profile.Function
 	// locationMap keeps track of all locations in profile, mapping (function
-	// name, pc offset) to the location ID.
-	locationMap map[locationKey]uint64
-	// stringsMap keeps track of all strings in profile, mapping the string to its
-	// index in the strings table.
-	stringsMap map[string]int64
+	// name, pc offset) to *Location.
+	locationMap map[locationKey]*profile.Location
 }
 
 func newPProfBuilder() *pprofBuilder {
 	return &pprofBuilder{
-		profile: &agentrpc.Profile{
-			SampleType: nil,
-			Sample:     nil,
-			Mapping:    nil,
-			Location:   nil,
-			Function:   nil,
-			// By pprof spec, the empty string is always present at index 0.
-			StringTable:       []string{""},
-			DropFrames:        0,
-			KeepFrames:        0,
-			TimeNanos:         0,
-			DurationNanos:     0,
-			PeriodType:        nil,
-			Period:            0,
-			Comment:           nil,
-			DefaultSampleType: 0,
+		profile: &profile.Profile{
+			Mapping: []*profile.Mapping{
+				{
+					ID:              1,
+					BuildID:         "dummy-build-id",
+					Start:           0x0,
+					Limit:           ^uint64(0),
+					HasFunctions:    true,
+					HasFilenames:    true,
+					HasLineNumbers:  true,
+					HasInlineFrames: true,
+				},
+			},
 		},
-		functionMap: make(map[string]uint64),
-		locationMap: make(map[locationKey]uint64),
-		stringsMap:  map[string]int64{"": 0},
+		functionMap: make(map[string]*profile.Function),
+		locationMap: make(map[locationKey]*profile.Location),
 	}
 }
 
-func (b *pprofBuilder) addSample(locIDs []uint64, gIDs []int) {
-	labelIdx := b.getOrAddString(agentrpc.GoroutineIDLabel)
-	var labels []*agentrpc.Label
-	for _, gID := range gIDs {
-		labels = append(labels, &agentrpc.Label{
-			Key:     labelIdx,
-			Num:     int64(gID),
-			NumUnit: labelIdx, // We use the name of the label as the unit too.
-		})
+func (b *pprofBuilder) addSample(calls []pp.Call, gIDs []int) {
+	labels := map[string][]int64{
+		agentrpc.GoroutineIDLabel: make([]int64, len(gIDs)),
+	}
+	for i, gID := range gIDs {
+		labels[agentrpc.GoroutineIDLabel][i] = int64(gID)
 	}
 
-	sample := &agentrpc.Sample{
-		LocationId: locIDs,
-		Value:      nil,
-		Label:      labels,
+	var locs []*profile.Location
+	for _, call := range calls {
+		locs = append(locs, b.getOrAddLocation(call))
+	}
+
+	sample := &profile.Sample{
+		Location: locs,
+		Value:    nil,
+		NumLabel: labels,
 	}
 	b.profile.Sample = append(b.profile.Sample, sample)
 }
 
 // Returns the ID of the location.
-func (b *pprofBuilder) getOrAddLocation(call pp.Call) uint64 {
+func (b *pprofBuilder) getOrAddLocation(call pp.Call) *profile.Location {
 	// Compute the hash of the function name and PC offset.
 	h := fnv.New64()
 	h.Write([]byte(call.Func.Name))
@@ -88,22 +86,22 @@ func (b *pprofBuilder) getOrAddLocation(call pp.Call) uint64 {
 		return id
 	}
 
-	location := &agentrpc.Location{
-		Id:        hash,
-		MappingId: 0,    // TODO
-		Address:   hash, // HACK
-		Line: []*agentrpc.Line{{
-			FunctionId: b.getOrAddFunction(call),
-			Line:       int64(call.Line),
+	location := &profile.Location{
+		ID:      hash,
+		Mapping: b.profile.Mapping[0],
+		Address: hash, // HACK
+		Line: []profile.Line{{
+			Function: b.getOrAddFunction(call),
+			Line:     int64(call.Line),
 		}},
 		IsFolded: false,
 	}
 	b.profile.Location = append(b.profile.Location, location)
-	b.locationMap[locKey] = location.Id
-	return location.Id
+	b.locationMap[locKey] = location
+	return location
 }
 
-func (b *pprofBuilder) getOrAddFunction(call pp.Call) uint64 {
+func (b *pprofBuilder) getOrAddFunction(call pp.Call) *profile.Function {
 	funcName := call.Func.Name
 	h := fnv.New64()
 	h.Write([]byte(funcName))
@@ -112,23 +110,28 @@ func (b *pprofBuilder) getOrAddFunction(call pp.Call) uint64 {
 	if id, ok := b.functionMap[funcName]; ok {
 		return id
 	}
-	function := &agentrpc.Function{
-		Id:         hash,
-		Name:       b.getOrAddString(call.Func.Name),
-		SystemName: b.getOrAddString(""),
-		Filename:   b.getOrAddString(call.RemoteSrcPath),
+	function := &profile.Function{
+		ID:         hash,
+		Name:       call.Func.Name,
+		SystemName: "",
+		Filename:   call.RemoteSrcPath,
 		StartLine:  0,
 	}
 	b.profile.Function = append(b.profile.Function, function)
-	b.functionMap[funcName] = function.Id
-	return function.Id
+	b.functionMap[funcName] = function
+	return function
 }
 
-func (b *pprofBuilder) getOrAddString(s string) int64 {
-	if id, ok := b.stringsMap[s]; ok {
-		return id
+func profileToProto(p *profile.Profile) *agentrpc.Profile {
+	var buf bytes.Buffer
+	err := p.WriteUncompressed(&buf)
+	if err != nil {
+		panic(err)
 	}
-	b.stringsMap[s] = int64(len(b.profile.StringTable))
-	b.profile.StringTable = append(b.profile.StringTable, s)
-	return b.stringsMap[s]
+	var pb agentrpc.Profile
+	err = proto.Unmarshal(buf.Bytes(), &pb)
+	if err != nil {
+		panic(err)
+	}
+	return &pb
 }

@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/go-delve/delve v1.20.2
+	github.com/google/pprof v0.0.0-20230808223545-4887780b67fb
 	github.com/kr/pretty v0.2.1
 	github.com/maruel/panicparse/v2 v2.3.1
 	google.golang.org/grpc v1.57.0
@@ -11,9 +12,11 @@ require (
 )
 
 require (
+	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cilium/ebpf v0.7.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/ianlancetaylor/demangle v0.0.0-20230524184225-eabc099b10ab // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/kr/text v0.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
