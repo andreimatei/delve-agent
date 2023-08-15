@@ -61,7 +61,7 @@ message ListVarsIn {
   // arguments available.
   int64 pc_offset = 3;
   // The maximum number of levels of recursive exploration for type definitions.
-  // 0 means that only they types of the variables are returned, but not their
+  // 0 means that only the types of the variables are returned, but not their
   // fields.
   // Exploration of pointer types does not count towards this limit. For
   // example, if a variable has type *main.T, only main.T will be included in
@@ -120,6 +120,8 @@ message ListTypesOut {
 }
 
 service DebugInfo {
+  rpc ListProcesses(ListProcessesIn) returns (stream ListProcessesOut);
+  rpc LoadDebugInfo(LoadDebugInfoIn) returns (LoadDebugInfoOut);
   // ListFunctions lists all functions in the target binary.
   rpc ListFunctions(ListFunctionsIn) returns (ListFunctionsOut);
   // ListTypes lists types in the target binary. Pointer types are not listed;
@@ -134,6 +136,14 @@ service DebugInfo {
   // Note that variables not available for collection may be included in the
   // result; loclist_available will be false for such variables.
   rpc ListVars(ListVarsIn) returns (ListVarsOut);
+}
+
+message LoadDebugInfoIn {
+  int64 binary_id = 1;
+}
+
+message LoadDebugInfoOut {
+  int64 debug_token = 1;
 }
 
 message FrameSpec {
@@ -184,4 +194,38 @@ message GetSnapshotOut {
 
 service SnapshotService {
   rpc GetSnapshot(GetSnapshotIn) returns (GetSnapshotOut);
+}
+
+message ListProcessesIn {
+  // TargetSpec defines a predicate for matching processes. All present fields
+  // are ANDed together.
+  message TargetSpec {
+    string hostname = 1;
+    string process_name = 2;
+    string binary_path = 3;
+  }
+
+  // The results are processes that match one or more of these predicates.
+  repeated TargetSpec predicates = 1;
+}
+
+message ListProcessesOut {
+  repeated Process processes = 1;
+}
+
+message Binary {
+  // An identifier for the binary. The same binary will result in the same
+  // identifier every time.
+  int64 token = 1;
+  bytes path = 2;
+}
+
+message Process {
+  int32 pid = 1;
+  Binary binary = 2;
+  repeated bytes command = 3;
+  string hostname = 4;
+  // The index(es) of the TargetSpec that matched this process within the
+  // ListProcessesIn.predicates.
+  int32 match_idx = 5;
 }
