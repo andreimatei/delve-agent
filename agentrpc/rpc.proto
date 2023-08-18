@@ -120,8 +120,12 @@ message ListTypesOut {
 }
 
 service DebugInfo {
+  // ListProcesses gathers information from all connected agents about processes
+  // of interest running on their hosts.
   rpc ListProcesses(ListProcessesIn) returns (stream ListProcessesOut);
-  rpc LoadDebugInfo(LoadDebugInfoIn) returns (LoadDebugInfoOut);
+  // DownloadBinary makes a binary available for future debug-info queries.
+  rpc DownloadBinary(DownloadBinaryIn) returns (DownloadBinaryOut);
+  
   // ListFunctions lists all functions in the target binary.
   rpc ListFunctions(ListFunctionsIn) returns (ListFunctionsOut);
   // ListTypes lists types in the target binary. Pointer types are not listed;
@@ -136,14 +140,6 @@ service DebugInfo {
   // Note that variables not available for collection may be included in the
   // result; loclist_available will be false for such variables.
   rpc ListVars(ListVarsIn) returns (ListVarsOut);
-}
-
-message LoadDebugInfoIn {
-  int64 binary_id = 1;
-}
-
-message LoadDebugInfoOut {
-  int64 debug_token = 1;
 }
 
 message FrameSpec {
@@ -210,22 +206,48 @@ message ListProcessesIn {
 }
 
 message ListProcessesOut {
-  repeated Process processes = 1;
+  // Reports contains an entry for every connected agent.
+  repeated AgentReport reports = 1;
 }
 
-message Binary {
-  // An identifier for the binary. The same binary will result in the same
-  // identifier every time.
-  int64 token = 1;
-  bytes path = 2;
+// AgentReport is the information reported by a single agent about the processes
+// of interest it recognized on its host.
+message AgentReport {
+  // The name of the host where the agent is running.
+  string hostname = 1;
+  // The IP addresses of the host where the agent is running.
+  repeated bytes ip_address = 2;
+  string agent_version = 3;
+
+  // processes can be empty if the agent did not find any processes matching the
+  // predicates in the query.
+  repeated Process processes = 4;
 }
 
 message Process {
   int32 pid = 1;
   Binary binary = 2;
   repeated bytes command = 3;
-  string hostname = 4;
   // The index(es) of the TargetSpec that matched this process within the
   // ListProcessesIn.predicates.
-  int32 match_idx = 5;
+  int32 match_idx = 4;
 }
+
+message Binary {
+  // An identifier for the binary. The same binary will result in the same
+  // identifier every time.
+  bytes ID = 1;
+  bytes path = 2;
+}
+
+message DownloadBinaryIn {
+  // binary_id identifies the binary to make durable.
+  bytes binary_id = 1;
+
+  // processes_config has information useful for finding the binary. The
+  // assumption is that the binary corresponds to one or more processes returned
+  // by a ListProcesses(process_config) call.
+  ListProcessesIn processes_config = 2;
+}
+
+message DownloadBinaryOut {}

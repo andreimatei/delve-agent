@@ -35,6 +35,16 @@ type grpcServer struct {
 	client *rpc2.RPCClient
 }
 
+func (s *grpcServer) ListProcesses(in *agentrpc.ListProcessesIn, server agentrpc.DebugInfo_ListProcessesServer) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *grpcServer) LoadDebugInfo(ctx context.Context, in *agentrpc.LoadDebugInfoIn) (*agentrpc.LoadDebugInfoOut, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 var _ agentrpc.DebugInfoServer = &grpcServer{}
 var _ agentrpc.SnapshotServiceServer = &grpcServer{}
 

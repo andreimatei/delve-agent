@@ -19,6 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	DebugInfo_ListProcesses_FullMethodName = "/agentrpc.DebugInfo/ListProcesses"
+	DebugInfo_LoadDebugInfo_FullMethodName = "/agentrpc.DebugInfo/LoadDebugInfo"
 	DebugInfo_ListFunctions_FullMethodName = "/agentrpc.DebugInfo/ListFunctions"
 	DebugInfo_ListTypes_FullMethodName     = "/agentrpc.DebugInfo/ListTypes"
 	DebugInfo_GetTypeInfo_FullMethodName   = "/agentrpc.DebugInfo/GetTypeInfo"
@@ -29,6 +31,12 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DebugInfoClient interface {
+	// ListProcesses gathers information from all connected agents about processes
+	// of interest running on their hosts.
+	ListProcesses(ctx context.Context, in *ListProcessesIn, opts ...grpc.CallOption) (DebugInfo_ListProcessesClient, error)
+	// LoadDebugInfo prepares the debug info for a particular binary for querying. It takes in a binary
+	// ID and returns a token to be used by DWARF queries.
+	LoadDebugInfo(ctx context.Context, in *LoadDebugInfoIn, opts ...grpc.CallOption) (*LoadDebugInfoOut, error)
 	// ListFunctions lists all functions in the target binary.
 	ListFunctions(ctx context.Context, in *ListFunctionsIn, opts ...grpc.CallOption) (*ListFunctionsOut, error)
 	// ListTypes lists types in the target binary. Pointer types are not listed;
@@ -51,6 +59,47 @@ type debugInfoClient struct {
 
 func NewDebugInfoClient(cc grpc.ClientConnInterface) DebugInfoClient {
 	return &debugInfoClient{cc}
+}
+
+func (c *debugInfoClient) ListProcesses(ctx context.Context, in *ListProcessesIn, opts ...grpc.CallOption) (DebugInfo_ListProcessesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &DebugInfo_ServiceDesc.Streams[0], DebugInfo_ListProcesses_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &debugInfoListProcessesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DebugInfo_ListProcessesClient interface {
+	Recv() (*ListProcessesOut, error)
+	grpc.ClientStream
+}
+
+type debugInfoListProcessesClient struct {
+	grpc.ClientStream
+}
+
+func (x *debugInfoListProcessesClient) Recv() (*ListProcessesOut, error) {
+	m := new(ListProcessesOut)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *debugInfoClient) LoadDebugInfo(ctx context.Context, in *LoadDebugInfoIn, opts ...grpc.CallOption) (*LoadDebugInfoOut, error) {
+	out := new(LoadDebugInfoOut)
+	err := c.cc.Invoke(ctx, DebugInfo_LoadDebugInfo_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *debugInfoClient) ListFunctions(ctx context.Context, in *ListFunctionsIn, opts ...grpc.CallOption) (*ListFunctionsOut, error) {
@@ -93,6 +142,12 @@ func (c *debugInfoClient) ListVars(ctx context.Context, in *ListVarsIn, opts ...
 // All implementations must embed UnimplementedDebugInfoServer
 // for forward compatibility
 type DebugInfoServer interface {
+	// ListProcesses gathers information from all connected agents about processes
+	// of interest running on their hosts.
+	ListProcesses(*ListProcessesIn, DebugInfo_ListProcessesServer) error
+	// LoadDebugInfo prepares the debug info for a particular binary for querying. It takes in a binary
+	// ID and returns a token to be used by DWARF queries.
+	LoadDebugInfo(context.Context, *LoadDebugInfoIn) (*LoadDebugInfoOut, error)
 	// ListFunctions lists all functions in the target binary.
 	ListFunctions(context.Context, *ListFunctionsIn) (*ListFunctionsOut, error)
 	// ListTypes lists types in the target binary. Pointer types are not listed;
@@ -114,6 +169,12 @@ type DebugInfoServer interface {
 type UnimplementedDebugInfoServer struct {
 }
 
+func (UnimplementedDebugInfoServer) ListProcesses(*ListProcessesIn, DebugInfo_ListProcessesServer) error {
+	return status.Errorf(codes.Unimplemented, "method ListProcesses not implemented")
+}
+func (UnimplementedDebugInfoServer) LoadDebugInfo(context.Context, *LoadDebugInfoIn) (*LoadDebugInfoOut, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LoadDebugInfo not implemented")
+}
 func (UnimplementedDebugInfoServer) ListFunctions(context.Context, *ListFunctionsIn) (*ListFunctionsOut, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListFunctions not implemented")
 }
@@ -137,6 +198,45 @@ type UnsafeDebugInfoServer interface {
 
 func RegisterDebugInfoServer(s grpc.ServiceRegistrar, srv DebugInfoServer) {
 	s.RegisterService(&DebugInfo_ServiceDesc, srv)
+}
+
+func _DebugInfo_ListProcesses_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListProcessesIn)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DebugInfoServer).ListProcesses(m, &debugInfoListProcessesServer{stream})
+}
+
+type DebugInfo_ListProcessesServer interface {
+	Send(*ListProcessesOut) error
+	grpc.ServerStream
+}
+
+type debugInfoListProcessesServer struct {
+	grpc.ServerStream
+}
+
+func (x *debugInfoListProcessesServer) Send(m *ListProcessesOut) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _DebugInfo_LoadDebugInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoadDebugInfoIn)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DebugInfoServer).LoadDebugInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DebugInfo_LoadDebugInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DebugInfoServer).LoadDebugInfo(ctx, req.(*LoadDebugInfoIn))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _DebugInfo_ListFunctions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -219,6 +319,10 @@ var DebugInfo_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*DebugInfoServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "LoadDebugInfo",
+			Handler:    _DebugInfo_LoadDebugInfo_Handler,
+		},
+		{
 			MethodName: "ListFunctions",
 			Handler:    _DebugInfo_ListFunctions_Handler,
 		},
@@ -235,7 +339,13 @@ var DebugInfo_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DebugInfo_ListVars_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ListProcesses",
+			Handler:       _DebugInfo_ListProcesses_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "rpc.proto",
 }
 

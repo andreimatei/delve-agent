@@ -359,7 +359,7 @@ type ListVarsIn struct {
 	// arguments available.
 	PcOffset int64 `protobuf:"varint,3,opt,name=pc_offset,json=pcOffset,proto3" json:"pc_offset,omitempty"`
 	// The maximum number of levels of recursive exploration for type definitions.
-	// 0 means that only they types of the variables are returned, but not their
+	// 0 means that only the types of the variables are returned, but not their
 	// fields.
 	// Exploration of pointer types does not count towards this limit. For
 	// example, if a variable has type *main.T, only main.T will be included in
@@ -967,12 +967,14 @@ func (x *CapturedExpression) GetValue() string {
 	return ""
 }
 
+// FrameData represents the data captured for a single stack frame.
 type FrameData struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	GoroutineId   int64                 `protobuf:"varint,1,opt,name=goroutine_id,json=goroutineId,proto3" json:"goroutine_id,omitempty"`
+	GoroutineId int64 `protobuf:"varint,1,opt,name=goroutine_id,json=goroutineId,proto3" json:"goroutine_id,omitempty"`
+	// The index of the frame in the stack. 0 is the leaf function.
 	FrameIdx      int64                 `protobuf:"varint,2,opt,name=frame_idx,json=frameIdx,proto3" json:"frame_idx,omitempty"`
 	CapturedExprs []*CapturedExpression `protobuf:"bytes,3,rep,name=captured_exprs,json=capturedExprs,proto3" json:"captured_exprs,omitempty"`
 }
@@ -1086,6 +1088,468 @@ func (x *GetSnapshotOut) GetFrameData() []*FrameData {
 		return x.FrameData
 	}
 	return nil
+}
+
+type ListProcessesIn struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The results are processes that match one or more of these predicates.
+	Predicates []*ListProcessesIn_TargetSpec `protobuf:"bytes,1,rep,name=predicates,proto3" json:"predicates,omitempty"`
+}
+
+func (x *ListProcessesIn) Reset() {
+	*x = ListProcessesIn{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_proto_msgTypes[17]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListProcessesIn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProcessesIn) ProtoMessage() {}
+
+func (x *ListProcessesIn) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[17]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProcessesIn.ProtoReflect.Descriptor instead.
+func (*ListProcessesIn) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ListProcessesIn) GetPredicates() []*ListProcessesIn_TargetSpec {
+	if x != nil {
+		return x.Predicates
+	}
+	return nil
+}
+
+type ListProcessesOut struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Reports contains an entry for every connected agent.
+	Reports []*AgentReport `protobuf:"bytes,1,rep,name=reports,proto3" json:"reports,omitempty"`
+}
+
+func (x *ListProcessesOut) Reset() {
+	*x = ListProcessesOut{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_proto_msgTypes[18]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListProcessesOut) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProcessesOut) ProtoMessage() {}
+
+func (x *ListProcessesOut) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[18]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProcessesOut.ProtoReflect.Descriptor instead.
+func (*ListProcessesOut) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListProcessesOut) GetReports() []*AgentReport {
+	if x != nil {
+		return x.Reports
+	}
+	return nil
+}
+
+// AgentReport is the information reported by a single agent about the processes
+// of interest it recognized on its host.
+type AgentReport struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The name of the host where the agent is running.
+	Hostname string `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// The IP addresses of the host where the agent is running.
+	IpAddress    [][]byte `protobuf:"bytes,2,rep,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
+	AgentVersion string   `protobuf:"bytes,3,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
+	// processes can be empty if the agent did not find any processes matching the
+	// predicates in the query.
+	Processes []*Process `protobuf:"bytes,4,rep,name=processes,proto3" json:"processes,omitempty"`
+}
+
+func (x *AgentReport) Reset() {
+	*x = AgentReport{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_proto_msgTypes[19]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *AgentReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentReport) ProtoMessage() {}
+
+func (x *AgentReport) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[19]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentReport.ProtoReflect.Descriptor instead.
+func (*AgentReport) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *AgentReport) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *AgentReport) GetIpAddress() [][]byte {
+	if x != nil {
+		return x.IpAddress
+	}
+	return nil
+}
+
+func (x *AgentReport) GetAgentVersion() string {
+	if x != nil {
+		return x.AgentVersion
+	}
+	return ""
+}
+
+func (x *AgentReport) GetProcesses() []*Process {
+	if x != nil {
+		return x.Processes
+	}
+	return nil
+}
+
+type Process struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Pid     int32    `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	Binary  *Binary  `protobuf:"bytes,2,opt,name=binary,proto3" json:"binary,omitempty"`
+	Command [][]byte `protobuf:"bytes,3,rep,name=command,proto3" json:"command,omitempty"`
+	// The index(es) of the TargetSpec that matched this process within the
+	// ListProcessesIn.predicates.
+	MatchIdx int32 `protobuf:"varint,4,opt,name=match_idx,json=matchIdx,proto3" json:"match_idx,omitempty"`
+}
+
+func (x *Process) Reset() {
+	*x = Process{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_proto_msgTypes[20]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Process) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Process) ProtoMessage() {}
+
+func (x *Process) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[20]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Process.ProtoReflect.Descriptor instead.
+func (*Process) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *Process) GetPid() int32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *Process) GetBinary() *Binary {
+	if x != nil {
+		return x.Binary
+	}
+	return nil
+}
+
+func (x *Process) GetCommand() [][]byte {
+	if x != nil {
+		return x.Command
+	}
+	return nil
+}
+
+func (x *Process) GetMatchIdx() int32 {
+	if x != nil {
+		return x.MatchIdx
+	}
+	return 0
+}
+
+type Binary struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// An identifier for the binary. The same binary will result in the same
+	// identifier every time.
+	ID   int64  `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Path []byte `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+}
+
+func (x *Binary) Reset() {
+	*x = Binary{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_proto_msgTypes[21]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Binary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Binary) ProtoMessage() {}
+
+func (x *Binary) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[21]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Binary.ProtoReflect.Descriptor instead.
+func (*Binary) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *Binary) GetID() int64 {
+	if x != nil {
+		return x.ID
+	}
+	return 0
+}
+
+func (x *Binary) GetPath() []byte {
+	if x != nil {
+		return x.Path
+	}
+	return nil
+}
+
+type LoadDebugInfoIn struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	BinaryId int64 `protobuf:"varint,1,opt,name=binary_id,json=binaryId,proto3" json:"binary_id,omitempty"`
+}
+
+func (x *LoadDebugInfoIn) Reset() {
+	*x = LoadDebugInfoIn{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_proto_msgTypes[22]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *LoadDebugInfoIn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LoadDebugInfoIn) ProtoMessage() {}
+
+func (x *LoadDebugInfoIn) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[22]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoadDebugInfoIn.ProtoReflect.Descriptor instead.
+func (*LoadDebugInfoIn) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *LoadDebugInfoIn) GetBinaryId() int64 {
+	if x != nil {
+		return x.BinaryId
+	}
+	return 0
+}
+
+type LoadDebugInfoOut struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	DebugToken int64 `protobuf:"varint,1,opt,name=debug_token,json=debugToken,proto3" json:"debug_token,omitempty"`
+}
+
+func (x *LoadDebugInfoOut) Reset() {
+	*x = LoadDebugInfoOut{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_proto_msgTypes[23]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *LoadDebugInfoOut) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LoadDebugInfoOut) ProtoMessage() {}
+
+func (x *LoadDebugInfoOut) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[23]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoadDebugInfoOut.ProtoReflect.Descriptor instead.
+func (*LoadDebugInfoOut) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *LoadDebugInfoOut) GetDebugToken() int64 {
+	if x != nil {
+		return x.DebugToken
+	}
+	return 0
+}
+
+// TargetSpec defines a predicate for matching processes. All present fields
+// are ANDed together.
+type ListProcessesIn_TargetSpec struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Hostname    string `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	ProcessName string `protobuf:"bytes,2,opt,name=process_name,json=processName,proto3" json:"process_name,omitempty"`
+	BinaryPath  string `protobuf:"bytes,3,opt,name=binary_path,json=binaryPath,proto3" json:"binary_path,omitempty"`
+}
+
+func (x *ListProcessesIn_TargetSpec) Reset() {
+	*x = ListProcessesIn_TargetSpec{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_rpc_proto_msgTypes[25]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ListProcessesIn_TargetSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProcessesIn_TargetSpec) ProtoMessage() {}
+
+func (x *ListProcessesIn_TargetSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_rpc_proto_msgTypes[25]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProcessesIn_TargetSpec.ProtoReflect.Descriptor instead.
+func (*ListProcessesIn_TargetSpec) Descriptor() ([]byte, []int) {
+	return file_rpc_proto_rawDescGZIP(), []int{17, 0}
+}
+
+func (x *ListProcessesIn_TargetSpec) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *ListProcessesIn_TargetSpec) GetProcessName() string {
+	if x != nil {
+		return x.ProcessName
+	}
+	return ""
+}
+
+func (x *ListProcessesIn_TargetSpec) GetBinaryPath() string {
+	if x != nil {
+		return x.BinaryPath
+	}
+	return ""
 }
 
 var File_rpc_proto protoreflect.FileDescriptor
@@ -1208,32 +1672,85 @@ var file_rpc_proto_rawDesc = []byte{
 	0x0a, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x03, 0x28,
 	0x0b, 0x32, 0x13, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x46, 0x72, 0x61,
 	0x6d, 0x65, 0x44, 0x61, 0x74, 0x61, 0x52, 0x09, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x44, 0x61, 0x74,
-	0x61, 0x32, 0x8a, 0x02, 0x0a, 0x09, 0x44, 0x65, 0x62, 0x75, 0x67, 0x49, 0x6e, 0x66, 0x6f, 0x12,
-	0x46, 0x0a, 0x0d, 0x4c, 0x69, 0x73, 0x74, 0x46, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73,
-	0x12, 0x19, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74,
-	0x46, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x49, 0x6e, 0x1a, 0x1a, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x46, 0x75, 0x6e, 0x63, 0x74,
-	0x69, 0x6f, 0x6e, 0x73, 0x4f, 0x75, 0x74, 0x12, 0x3a, 0x0a, 0x09, 0x4c, 0x69, 0x73, 0x74, 0x54,
-	0x79, 0x70, 0x65, 0x73, 0x12, 0x15, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e,
-	0x4c, 0x69, 0x73, 0x74, 0x54, 0x79, 0x70, 0x65, 0x73, 0x49, 0x6e, 0x1a, 0x16, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x79, 0x70, 0x65, 0x73,
-	0x4f, 0x75, 0x74, 0x12, 0x40, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x54, 0x79, 0x70, 0x65, 0x49, 0x6e,
-	0x66, 0x6f, 0x12, 0x17, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x47, 0x65,
-	0x74, 0x54, 0x79, 0x70, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x49, 0x6e, 0x1a, 0x18, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x79, 0x70, 0x65, 0x49, 0x6e,
-	0x66, 0x6f, 0x4f, 0x75, 0x74, 0x12, 0x37, 0x0a, 0x08, 0x4c, 0x69, 0x73, 0x74, 0x56, 0x61, 0x72,
-	0x73, 0x12, 0x14, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73,
-	0x74, 0x56, 0x61, 0x72, 0x73, 0x49, 0x6e, 0x1a, 0x15, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72,
-	0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x56, 0x61, 0x72, 0x73, 0x4f, 0x75, 0x74, 0x32, 0x53,
-	0x0a, 0x0f, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
-	0x65, 0x12, 0x40, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74,
-	0x12, 0x17, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x53,
-	0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x49, 0x6e, 0x1a, 0x18, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x72, 0x70, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74,
-	0x4f, 0x75, 0x74, 0x42, 0x2d, 0x5a, 0x2b, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f,
-	0x6d, 0x2f, 0x61, 0x6e, 0x64, 0x72, 0x65, 0x69, 0x6d, 0x61, 0x74, 0x65, 0x69, 0x2f, 0x64, 0x65,
-	0x6c, 0x76, 0x65, 0x2d, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2f, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72,
-	0x70, 0x63, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x61, 0x22, 0xc5, 0x01, 0x0a, 0x0f, 0x4c, 0x69, 0x73, 0x74, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73,
+	0x73, 0x65, 0x73, 0x49, 0x6e, 0x12, 0x44, 0x0a, 0x0a, 0x70, 0x72, 0x65, 0x64, 0x69, 0x63, 0x61,
+	0x74, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x24, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73,
+	0x65, 0x73, 0x49, 0x6e, 0x2e, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x53, 0x70, 0x65, 0x63, 0x52,
+	0x0a, 0x70, 0x72, 0x65, 0x64, 0x69, 0x63, 0x61, 0x74, 0x65, 0x73, 0x1a, 0x6c, 0x0a, 0x0a, 0x54,
+	0x61, 0x72, 0x67, 0x65, 0x74, 0x53, 0x70, 0x65, 0x63, 0x12, 0x1a, 0x0a, 0x08, 0x68, 0x6f, 0x73,
+	0x74, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x68, 0x6f, 0x73,
+	0x74, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x21, 0x0a, 0x0c, 0x70, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73,
+	0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x70, 0x72, 0x6f,
+	0x63, 0x65, 0x73, 0x73, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x62, 0x69, 0x6e, 0x61,
+	0x72, 0x79, 0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x62,
+	0x69, 0x6e, 0x61, 0x72, 0x79, 0x50, 0x61, 0x74, 0x68, 0x22, 0x43, 0x0a, 0x10, 0x4c, 0x69, 0x73,
+	0x74, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x65, 0x73, 0x4f, 0x75, 0x74, 0x12, 0x2f, 0x0a,
+	0x07, 0x72, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x15,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52,
+	0x65, 0x70, 0x6f, 0x72, 0x74, 0x52, 0x07, 0x72, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x73, 0x22, 0x9e,
+	0x01, 0x0a, 0x0b, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x12, 0x1a,
+	0x0a, 0x08, 0x68, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x08, 0x68, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1d, 0x0a, 0x0a, 0x69, 0x70,
+	0x5f, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x09,
+	0x69, 0x70, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12, 0x23, 0x0a, 0x0d, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x0c, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x2f,
+	0x0a, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x65, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28,
+	0x0b, 0x32, 0x11, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x50, 0x72, 0x6f,
+	0x63, 0x65, 0x73, 0x73, 0x52, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x65, 0x73, 0x22,
+	0x7c, 0x0a, 0x07, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x12, 0x10, 0x0a, 0x03, 0x70, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x03, 0x70, 0x69, 0x64, 0x12, 0x28, 0x0a, 0x06,
+	0x62, 0x69, 0x6e, 0x61, 0x72, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x42, 0x69, 0x6e, 0x61, 0x72, 0x79, 0x52, 0x06,
+	0x62, 0x69, 0x6e, 0x61, 0x72, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x61, 0x6e,
+	0x64, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64,
+	0x12, 0x1b, 0x0a, 0x09, 0x6d, 0x61, 0x74, 0x63, 0x68, 0x5f, 0x69, 0x64, 0x78, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x05, 0x52, 0x08, 0x6d, 0x61, 0x74, 0x63, 0x68, 0x49, 0x64, 0x78, 0x22, 0x2c, 0x0a,
+	0x06, 0x42, 0x69, 0x6e, 0x61, 0x72, 0x79, 0x12, 0x0e, 0x0a, 0x02, 0x49, 0x44, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x03, 0x52, 0x02, 0x49, 0x44, 0x12, 0x12, 0x0a, 0x04, 0x70, 0x61, 0x74, 0x68, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x70, 0x61, 0x74, 0x68, 0x22, 0x2e, 0x0a, 0x0f, 0x4c,
+	0x6f, 0x61, 0x64, 0x44, 0x65, 0x62, 0x75, 0x67, 0x49, 0x6e, 0x66, 0x6f, 0x49, 0x6e, 0x12, 0x1b,
+	0x0a, 0x09, 0x62, 0x69, 0x6e, 0x61, 0x72, 0x79, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x03, 0x52, 0x08, 0x62, 0x69, 0x6e, 0x61, 0x72, 0x79, 0x49, 0x64, 0x22, 0x33, 0x0a, 0x10, 0x4c,
+	0x6f, 0x61, 0x64, 0x44, 0x65, 0x62, 0x75, 0x67, 0x49, 0x6e, 0x66, 0x6f, 0x4f, 0x75, 0x74, 0x12,
+	0x1f, 0x0a, 0x0b, 0x64, 0x65, 0x62, 0x75, 0x67, 0x5f, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x03, 0x52, 0x0a, 0x64, 0x65, 0x62, 0x75, 0x67, 0x54, 0x6f, 0x6b, 0x65, 0x6e,
+	0x32, 0x9c, 0x03, 0x0a, 0x09, 0x44, 0x65, 0x62, 0x75, 0x67, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x48,
+	0x0a, 0x0d, 0x4c, 0x69, 0x73, 0x74, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x65, 0x73, 0x12,
+	0x19, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x50,
+	0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x65, 0x73, 0x49, 0x6e, 0x1a, 0x1a, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73,
+	0x73, 0x65, 0x73, 0x4f, 0x75, 0x74, 0x30, 0x01, 0x12, 0x46, 0x0a, 0x0d, 0x4c, 0x6f, 0x61, 0x64,
+	0x44, 0x65, 0x62, 0x75, 0x67, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x19, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x6f, 0x61, 0x64, 0x44, 0x65, 0x62, 0x75, 0x67, 0x49, 0x6e,
+	0x66, 0x6f, 0x49, 0x6e, 0x1a, 0x1a, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e,
+	0x4c, 0x6f, 0x61, 0x64, 0x44, 0x65, 0x62, 0x75, 0x67, 0x49, 0x6e, 0x66, 0x6f, 0x4f, 0x75, 0x74,
+	0x12, 0x46, 0x0a, 0x0d, 0x4c, 0x69, 0x73, 0x74, 0x46, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e,
+	0x73, 0x12, 0x19, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73,
+	0x74, 0x46, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x49, 0x6e, 0x1a, 0x1a, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x46, 0x75, 0x6e, 0x63,
+	0x74, 0x69, 0x6f, 0x6e, 0x73, 0x4f, 0x75, 0x74, 0x12, 0x3a, 0x0a, 0x09, 0x4c, 0x69, 0x73, 0x74,
+	0x54, 0x79, 0x70, 0x65, 0x73, 0x12, 0x15, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63,
+	0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x79, 0x70, 0x65, 0x73, 0x49, 0x6e, 0x1a, 0x16, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x54, 0x79, 0x70, 0x65,
+	0x73, 0x4f, 0x75, 0x74, 0x12, 0x40, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x54, 0x79, 0x70, 0x65, 0x49,
+	0x6e, 0x66, 0x6f, 0x12, 0x17, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x47,
+	0x65, 0x74, 0x54, 0x79, 0x70, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x49, 0x6e, 0x1a, 0x18, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x54, 0x79, 0x70, 0x65, 0x49,
+	0x6e, 0x66, 0x6f, 0x4f, 0x75, 0x74, 0x12, 0x37, 0x0a, 0x08, 0x4c, 0x69, 0x73, 0x74, 0x56, 0x61,
+	0x72, 0x73, 0x12, 0x14, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69,
+	0x73, 0x74, 0x56, 0x61, 0x72, 0x73, 0x49, 0x6e, 0x1a, 0x15, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x72, 0x70, 0x63, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x56, 0x61, 0x72, 0x73, 0x4f, 0x75, 0x74, 0x32,
+	0x53, 0x0a, 0x0f, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69,
+	0x63, 0x65, 0x12, 0x40, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f,
+	0x74, 0x12, 0x17, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x47, 0x65, 0x74,
+	0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x49, 0x6e, 0x1a, 0x18, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x72, 0x70, 0x63, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f,
+	0x74, 0x4f, 0x75, 0x74, 0x42, 0x2d, 0x5a, 0x2b, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
+	0x6f, 0x6d, 0x2f, 0x61, 0x6e, 0x64, 0x72, 0x65, 0x69, 0x6d, 0x61, 0x74, 0x65, 0x69, 0x2f, 0x64,
+	0x65, 0x6c, 0x76, 0x65, 0x2d, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2f, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x72, 0x70, 0x63, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1248,54 +1765,70 @@ func file_rpc_proto_rawDescGZIP() []byte {
 	return file_rpc_proto_rawDescData
 }
 
-var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_rpc_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_rpc_proto_goTypes = []interface{}{
-	(*GetTypeInfoIn)(nil),      // 0: agentrpc.GetTypeInfoIn
-	(*FieldInfo)(nil),          // 1: agentrpc.FieldInfo
-	(*GetTypeInfoOut)(nil),     // 2: agentrpc.GetTypeInfoOut
-	(*VarInfo)(nil),            // 3: agentrpc.VarInfo
-	(*TypeInfo)(nil),           // 4: agentrpc.TypeInfo
-	(*ListVarsIn)(nil),         // 5: agentrpc.ListVarsIn
-	(*ListVarsOut)(nil),        // 6: agentrpc.ListVarsOut
-	(*ListFunctionsIn)(nil),    // 7: agentrpc.ListFunctionsIn
-	(*ListFunctionsOut)(nil),   // 8: agentrpc.ListFunctionsOut
-	(*ListTypesIn)(nil),        // 9: agentrpc.ListTypesIn
-	(*ListTypesOut)(nil),       // 10: agentrpc.ListTypesOut
-	(*FrameSpec)(nil),          // 11: agentrpc.FrameSpec
-	(*TypeSpec)(nil),           // 12: agentrpc.TypeSpec
-	(*GetSnapshotIn)(nil),      // 13: agentrpc.GetSnapshotIn
-	(*CapturedExpression)(nil), // 14: agentrpc.CapturedExpression
-	(*FrameData)(nil),          // 15: agentrpc.FrameData
-	(*GetSnapshotOut)(nil),     // 16: agentrpc.GetSnapshotOut
-	nil,                        // 17: agentrpc.ListVarsOut.TypesEntry
-	(*Profile)(nil),            // 18: perftools.profiles.Profile
+	(*GetTypeInfoIn)(nil),              // 0: agentrpc.GetTypeInfoIn
+	(*FieldInfo)(nil),                  // 1: agentrpc.FieldInfo
+	(*GetTypeInfoOut)(nil),             // 2: agentrpc.GetTypeInfoOut
+	(*VarInfo)(nil),                    // 3: agentrpc.VarInfo
+	(*TypeInfo)(nil),                   // 4: agentrpc.TypeInfo
+	(*ListVarsIn)(nil),                 // 5: agentrpc.ListVarsIn
+	(*ListVarsOut)(nil),                // 6: agentrpc.ListVarsOut
+	(*ListFunctionsIn)(nil),            // 7: agentrpc.ListFunctionsIn
+	(*ListFunctionsOut)(nil),           // 8: agentrpc.ListFunctionsOut
+	(*ListTypesIn)(nil),                // 9: agentrpc.ListTypesIn
+	(*ListTypesOut)(nil),               // 10: agentrpc.ListTypesOut
+	(*FrameSpec)(nil),                  // 11: agentrpc.FrameSpec
+	(*TypeSpec)(nil),                   // 12: agentrpc.TypeSpec
+	(*GetSnapshotIn)(nil),              // 13: agentrpc.GetSnapshotIn
+	(*CapturedExpression)(nil),         // 14: agentrpc.CapturedExpression
+	(*FrameData)(nil),                  // 15: agentrpc.FrameData
+	(*GetSnapshotOut)(nil),             // 16: agentrpc.GetSnapshotOut
+	(*ListProcessesIn)(nil),            // 17: agentrpc.ListProcessesIn
+	(*ListProcessesOut)(nil),           // 18: agentrpc.ListProcessesOut
+	(*AgentReport)(nil),                // 19: agentrpc.AgentReport
+	(*Process)(nil),                    // 20: agentrpc.Process
+	(*Binary)(nil),                     // 21: agentrpc.Binary
+	(*LoadDebugInfoIn)(nil),            // 22: agentrpc.LoadDebugInfoIn
+	(*LoadDebugInfoOut)(nil),           // 23: agentrpc.LoadDebugInfoOut
+	nil,                                // 24: agentrpc.ListVarsOut.TypesEntry
+	(*ListProcessesIn_TargetSpec)(nil), // 25: agentrpc.ListProcessesIn.TargetSpec
+	(*Profile)(nil),                    // 26: perftools.profiles.Profile
 }
 var file_rpc_proto_depIdxs = []int32{
 	1,  // 0: agentrpc.GetTypeInfoOut.fields:type_name -> agentrpc.FieldInfo
 	1,  // 1: agentrpc.TypeInfo.fields:type_name -> agentrpc.FieldInfo
 	3,  // 2: agentrpc.ListVarsOut.vars:type_name -> agentrpc.VarInfo
-	17, // 3: agentrpc.ListVarsOut.types:type_name -> agentrpc.ListVarsOut.TypesEntry
+	24, // 3: agentrpc.ListVarsOut.types:type_name -> agentrpc.ListVarsOut.TypesEntry
 	11, // 4: agentrpc.GetSnapshotIn.frame_specs:type_name -> agentrpc.FrameSpec
 	12, // 5: agentrpc.GetSnapshotIn.type_specs:type_name -> agentrpc.TypeSpec
 	14, // 6: agentrpc.FrameData.captured_exprs:type_name -> agentrpc.CapturedExpression
-	18, // 7: agentrpc.GetSnapshotOut.profile:type_name -> perftools.profiles.Profile
+	26, // 7: agentrpc.GetSnapshotOut.profile:type_name -> perftools.profiles.Profile
 	15, // 8: agentrpc.GetSnapshotOut.frame_data:type_name -> agentrpc.FrameData
-	4,  // 9: agentrpc.ListVarsOut.TypesEntry.value:type_name -> agentrpc.TypeInfo
-	7,  // 10: agentrpc.DebugInfo.ListFunctions:input_type -> agentrpc.ListFunctionsIn
-	9,  // 11: agentrpc.DebugInfo.ListTypes:input_type -> agentrpc.ListTypesIn
-	0,  // 12: agentrpc.DebugInfo.GetTypeInfo:input_type -> agentrpc.GetTypeInfoIn
-	5,  // 13: agentrpc.DebugInfo.ListVars:input_type -> agentrpc.ListVarsIn
-	13, // 14: agentrpc.SnapshotService.GetSnapshot:input_type -> agentrpc.GetSnapshotIn
-	8,  // 15: agentrpc.DebugInfo.ListFunctions:output_type -> agentrpc.ListFunctionsOut
-	10, // 16: agentrpc.DebugInfo.ListTypes:output_type -> agentrpc.ListTypesOut
-	2,  // 17: agentrpc.DebugInfo.GetTypeInfo:output_type -> agentrpc.GetTypeInfoOut
-	6,  // 18: agentrpc.DebugInfo.ListVars:output_type -> agentrpc.ListVarsOut
-	16, // 19: agentrpc.SnapshotService.GetSnapshot:output_type -> agentrpc.GetSnapshotOut
-	15, // [15:20] is the sub-list for method output_type
-	10, // [10:15] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	25, // 9: agentrpc.ListProcessesIn.predicates:type_name -> agentrpc.ListProcessesIn.TargetSpec
+	19, // 10: agentrpc.ListProcessesOut.reports:type_name -> agentrpc.AgentReport
+	20, // 11: agentrpc.AgentReport.processes:type_name -> agentrpc.Process
+	21, // 12: agentrpc.Process.binary:type_name -> agentrpc.Binary
+	4,  // 13: agentrpc.ListVarsOut.TypesEntry.value:type_name -> agentrpc.TypeInfo
+	17, // 14: agentrpc.DebugInfo.ListProcesses:input_type -> agentrpc.ListProcessesIn
+	22, // 15: agentrpc.DebugInfo.LoadDebugInfo:input_type -> agentrpc.LoadDebugInfoIn
+	7,  // 16: agentrpc.DebugInfo.ListFunctions:input_type -> agentrpc.ListFunctionsIn
+	9,  // 17: agentrpc.DebugInfo.ListTypes:input_type -> agentrpc.ListTypesIn
+	0,  // 18: agentrpc.DebugInfo.GetTypeInfo:input_type -> agentrpc.GetTypeInfoIn
+	5,  // 19: agentrpc.DebugInfo.ListVars:input_type -> agentrpc.ListVarsIn
+	13, // 20: agentrpc.SnapshotService.GetSnapshot:input_type -> agentrpc.GetSnapshotIn
+	18, // 21: agentrpc.DebugInfo.ListProcesses:output_type -> agentrpc.ListProcessesOut
+	23, // 22: agentrpc.DebugInfo.LoadDebugInfo:output_type -> agentrpc.LoadDebugInfoOut
+	8,  // 23: agentrpc.DebugInfo.ListFunctions:output_type -> agentrpc.ListFunctionsOut
+	10, // 24: agentrpc.DebugInfo.ListTypes:output_type -> agentrpc.ListTypesOut
+	2,  // 25: agentrpc.DebugInfo.GetTypeInfo:output_type -> agentrpc.GetTypeInfoOut
+	6,  // 26: agentrpc.DebugInfo.ListVars:output_type -> agentrpc.ListVarsOut
+	16, // 27: agentrpc.SnapshotService.GetSnapshot:output_type -> agentrpc.GetSnapshotOut
+	21, // [21:28] is the sub-list for method output_type
+	14, // [14:21] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_rpc_proto_init() }
@@ -1509,6 +2042,102 @@ func file_rpc_proto_init() {
 				return nil
 			}
 		}
+		file_rpc_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ListProcessesIn); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ListProcessesOut); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*AgentReport); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Process); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Binary); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*LoadDebugInfoIn); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*LoadDebugInfoOut); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_rpc_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ListProcessesIn_TargetSpec); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1516,7 +2145,7 @@ func file_rpc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_rpc_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   18,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
