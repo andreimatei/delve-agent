@@ -222,6 +222,25 @@ message AgentReport {
   // processes can be empty if the agent did not find any processes matching the
   // predicates in the query.
   repeated Process processes = 4;
+  
+  // agent_id is a unique identifier for the agent. The ID is referenced by the
+  // CaptureSnapshot RPC in order to identify which machine to collect process
+  // snapshots from. If the server has a stable, unique identifier for an agent
+  // (e.g. if the agent's IP or hostname are unique), then it will use that. If
+  // two agents cannot be distinguished by the server (e.g. if two agents are
+  // running on the same machine, probably by mistake), then the server will
+  // generate synthetic identifiers. In this case, however, the IDs are not
+  // usable after a server restart (i.e. CaptureSnapshot RPCs using them will
+  // fail).
+  //
+  // TODO: Ideally, such an agent identifier would not make it to the client. If
+  // the client does not have another unique way to identify between two or more
+  // agents (e.g. IP, hostname, PID of target process running on that agent's
+  // machine, etc.), then the ultimate human user also has no way to
+  // disambiguate between the respective agents, and thus they shouldn't be
+  // asked to. The server should thus find ways to deal with indistinguishable
+  // agents in a way that is transparent to the client.
+  string agent_id = 5;
 }
 
 message Process {

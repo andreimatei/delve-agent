@@ -19,12 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	DebugInfo_ListProcesses_FullMethodName = "/agentrpc.DebugInfo/ListProcesses"
-	DebugInfo_LoadDebugInfo_FullMethodName = "/agentrpc.DebugInfo/LoadDebugInfo"
-	DebugInfo_ListFunctions_FullMethodName = "/agentrpc.DebugInfo/ListFunctions"
-	DebugInfo_ListTypes_FullMethodName     = "/agentrpc.DebugInfo/ListTypes"
-	DebugInfo_GetTypeInfo_FullMethodName   = "/agentrpc.DebugInfo/GetTypeInfo"
-	DebugInfo_ListVars_FullMethodName      = "/agentrpc.DebugInfo/ListVars"
+	DebugInfo_ListProcesses_FullMethodName  = "/agentrpc.DebugInfo/ListProcesses"
+	DebugInfo_DownloadBinary_FullMethodName = "/agentrpc.DebugInfo/DownloadBinary"
+	DebugInfo_ListFunctions_FullMethodName  = "/agentrpc.DebugInfo/ListFunctions"
+	DebugInfo_ListTypes_FullMethodName      = "/agentrpc.DebugInfo/ListTypes"
+	DebugInfo_GetTypeInfo_FullMethodName    = "/agentrpc.DebugInfo/GetTypeInfo"
+	DebugInfo_ListVars_FullMethodName       = "/agentrpc.DebugInfo/ListVars"
 )
 
 // DebugInfoClient is the client API for DebugInfo service.
@@ -34,9 +34,8 @@ type DebugInfoClient interface {
 	// ListProcesses gathers information from all connected agents about processes
 	// of interest running on their hosts.
 	ListProcesses(ctx context.Context, in *ListProcessesIn, opts ...grpc.CallOption) (DebugInfo_ListProcessesClient, error)
-	// LoadDebugInfo prepares the debug info for a particular binary for querying. It takes in a binary
-	// ID and returns a token to be used by DWARF queries.
-	LoadDebugInfo(ctx context.Context, in *LoadDebugInfoIn, opts ...grpc.CallOption) (*LoadDebugInfoOut, error)
+	// DownloadBinary makes a binary available for future debug-info queries.
+	DownloadBinary(ctx context.Context, in *DownloadBinaryIn, opts ...grpc.CallOption) (*DownloadBinaryOut, error)
 	// ListFunctions lists all functions in the target binary.
 	ListFunctions(ctx context.Context, in *ListFunctionsIn, opts ...grpc.CallOption) (*ListFunctionsOut, error)
 	// ListTypes lists types in the target binary. Pointer types are not listed;
@@ -93,9 +92,9 @@ func (x *debugInfoListProcessesClient) Recv() (*ListProcessesOut, error) {
 	return m, nil
 }
 
-func (c *debugInfoClient) LoadDebugInfo(ctx context.Context, in *LoadDebugInfoIn, opts ...grpc.CallOption) (*LoadDebugInfoOut, error) {
-	out := new(LoadDebugInfoOut)
-	err := c.cc.Invoke(ctx, DebugInfo_LoadDebugInfo_FullMethodName, in, out, opts...)
+func (c *debugInfoClient) DownloadBinary(ctx context.Context, in *DownloadBinaryIn, opts ...grpc.CallOption) (*DownloadBinaryOut, error) {
+	out := new(DownloadBinaryOut)
+	err := c.cc.Invoke(ctx, DebugInfo_DownloadBinary_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +144,8 @@ type DebugInfoServer interface {
 	// ListProcesses gathers information from all connected agents about processes
 	// of interest running on their hosts.
 	ListProcesses(*ListProcessesIn, DebugInfo_ListProcessesServer) error
-	// LoadDebugInfo prepares the debug info for a particular binary for querying. It takes in a binary
-	// ID and returns a token to be used by DWARF queries.
-	LoadDebugInfo(context.Context, *LoadDebugInfoIn) (*LoadDebugInfoOut, error)
+	// DownloadBinary makes a binary available for future debug-info queries.
+	DownloadBinary(context.Context, *DownloadBinaryIn) (*DownloadBinaryOut, error)
 	// ListFunctions lists all functions in the target binary.
 	ListFunctions(context.Context, *ListFunctionsIn) (*ListFunctionsOut, error)
 	// ListTypes lists types in the target binary. Pointer types are not listed;
@@ -172,8 +170,8 @@ type UnimplementedDebugInfoServer struct {
 func (UnimplementedDebugInfoServer) ListProcesses(*ListProcessesIn, DebugInfo_ListProcessesServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListProcesses not implemented")
 }
-func (UnimplementedDebugInfoServer) LoadDebugInfo(context.Context, *LoadDebugInfoIn) (*LoadDebugInfoOut, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LoadDebugInfo not implemented")
+func (UnimplementedDebugInfoServer) DownloadBinary(context.Context, *DownloadBinaryIn) (*DownloadBinaryOut, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DownloadBinary not implemented")
 }
 func (UnimplementedDebugInfoServer) ListFunctions(context.Context, *ListFunctionsIn) (*ListFunctionsOut, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListFunctions not implemented")
@@ -221,20 +219,20 @@ func (x *debugInfoListProcessesServer) Send(m *ListProcessesOut) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _DebugInfo_LoadDebugInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LoadDebugInfoIn)
+func _DebugInfo_DownloadBinary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DownloadBinaryIn)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DebugInfoServer).LoadDebugInfo(ctx, in)
+		return srv.(DebugInfoServer).DownloadBinary(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: DebugInfo_LoadDebugInfo_FullMethodName,
+		FullMethod: DebugInfo_DownloadBinary_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DebugInfoServer).LoadDebugInfo(ctx, req.(*LoadDebugInfoIn))
+		return srv.(DebugInfoServer).DownloadBinary(ctx, req.(*DownloadBinaryIn))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -319,8 +317,8 @@ var DebugInfo_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*DebugInfoServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "LoadDebugInfo",
-			Handler:    _DebugInfo_LoadDebugInfo_Handler,
+			MethodName: "DownloadBinary",
+			Handler:    _DebugInfo_DownloadBinary_Handler,
 		},
 		{
 			MethodName: "ListFunctions",
