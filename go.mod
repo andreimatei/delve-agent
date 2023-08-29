@@ -31,6 +31,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/go-delve/delve => ../../go-delve/delve
+replace github.com/go-delve/delve => ../delve
 
-replace github.com/maruel/panicparse/v2 => ../../maruel/panicparse
+replace github.com/maruel/panicparse/v2 => ../panicparse
