@@ -26,12 +26,14 @@ goroutine_status_to_string = {
 
 
 def serialize_backtrace(gid, limit):
-    stack = stacktrace(gid,
-                       100,  # depth
-                       False,  # full
-                       False,  # defers
-                       # 7,     # option flags
-                       )
+    stack = stacktrace({
+        'ID': gid,
+        'Depth': 100,
+        'Full': False,
+        'Defers': False,
+        # 'Opts': 7,     # option flags
+        'ContextExprs': False,
+    })
     backtrace = ''
     for i, f in enumerate(stack.Locations):
         fun_name = '<unknown>'
@@ -65,14 +67,15 @@ def gs():
     vars = {}
     for g in gs:
         # print("======= GOROUTINE ", g.ID)
-        stack = stacktrace(g.ID,
-                           200,  # depth
-                           False,  # full
-                           False,  # defers
-                           # 7,     # option flags
-                           # {"FollowPointers":True, "MaxVariableRecurse":3, "MaxStringLen":0, "MaxArrayValues":10, "MaxStructFields":100}, # MaxVariableRecurse:1, MaxStringLen:64, MaxArrayValues:64, MaxStructFields:-1}"
-                           ContextExprs=True,
-                           )
+        stack = stacktrace(
+            Id=g.ID,
+            Depth=200,  # depth
+            Full=False,  # full
+            Defers=False,  # defers
+            # 7,     # option flags
+            # {"FollowPointers":True, "MaxVariableRecurse":3, "MaxStringLen":0, "MaxArrayValues":10, "MaxStructFields":100}, # MaxVariableRecurse:1, MaxStringLen:64, MaxArrayValues:64, MaxStructFields:-1}"
+            ContextExprs=False,
+            )
 
         # Search for frames of interest.
         backtrace = 'goroutine %d [%s]:\n' % (g.ID, goroutine_status_to_string[g.Status])

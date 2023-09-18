@@ -436,8 +436,6 @@ func (s *grpcServer) GetSnapshot(ctx context.Context, in *agentrpc.GetSnapshotIn
 	//	return nil, err
 	//}
 
-	log.Printf("!!! about to return")
-
 	return &agentrpc.GetSnapshotOut{
 		Profile:   profileToProto(profile),
 		FrameData: frameData,
