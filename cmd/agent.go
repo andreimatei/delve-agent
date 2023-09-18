@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/go-delve/delve/service/api"
 	"github.com/google/pprof/profile"
 	"github.com/kr/pretty"
 	pp "github.com/maruel/panicparse/v2/stack"
@@ -13,8 +12,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"net/http"
-	"net/rpc"
 	"os"
 	"strconv"
 	"strings"
@@ -25,7 +22,6 @@ import (
 )
 
 var delveAddrFlag = flag.String("addr", "127.0.0.1:45689", "")
-var listenAddrFlag = flag.String("listen", "127.0.0.1:1234", "")
 var grpclistenAddrFlag = flag.String("listen-grpc", "127.0.0.1:1235", "")
 var oneShot = flag.Bool("oneshot", false, "")
 
@@ -241,20 +237,116 @@ func scriptResultsToPProf(stacks map[int]string) (*profile.Profile, error) {
 	return b.profile, nil
 }
 
-type Server struct {
-	client *rpc2.RPCClient
-}
+//type Server struct {
+//	client *rpc2.RPCClient
+//}
+//
+//func (s *Server) continueProcess() {
+//	// Continue blocks, so we do it on a different goroutine that leaks.
+//	go func() {
+//		ch := s.client.Continue()
+//		_ = ch
+//		//for state := range ch {
+//		//	log.Printf("got state: %s", pretty.Sprint(state))
+//		//}
+//		//log.Print("finished with continue; channel closed")
+//	}()
+//}
+//
+//func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, out *agentrpc.ReconcileFLightRecorderOut) error {
+//	log.Printf("!!! ReconcileFlightRecorder: %v", in)
+//	_ /* state */, err := s.client.Halt()
+//	if err != nil {
+//		panic(err)
+//	}
+//	defer s.continueProcess()
+//
+//	scriptTemplate := `
+//stmt = eval(None, "$expr")
+//flight_recorder(str(cur_scope().GoroutineID), stmt.Variable.Value)
+//`
+//
+//	bks, err := s.client.ListBreakpoints(false /* all ? */)
+//	if err != nil {
+//		return err
+//	}
+//
+//	evName := func(ev agentrpc.FlightRecorderEventSpec) string {
+//		return fmt.Sprintf("%s-%s", ev.Frame, ev.Expr)
+//	}
+//
+//	findEv := func(name string) int {
+//		for i, ev := range in.Events {
+//			if name == evName(ev) {
+//				return i
+//			}
+//		}
+//		return -1
+//	}
+//
+//	// map from idx
+//	alreadyExists := make(map[int]struct{})
+//	for _, bk := range bks {
+//		evIdx := findEv(bk.Name)
+//		if evIdx == -1 {
+//			_, err := s.client.ClearBreakpoint(bk.ID)
+//			if err != nil {
+//				return nil
+//			}
+//		}
+//		log.Printf("event %s already exists", bk.Name)
+//		alreadyExists[evIdx] = struct{}{}
+//	}
+//
+//	for i, ev := range in.Events {
+//		if _, ok := alreadyExists[i]; ok {
+//			continue
+//		}
+//
+//		keyExpr := ev.KeyExpr
+//		if ev.KeyExpr == "goroutineID" {
+//			keyExpr = `str(cur_scope().GoroutineID)`
+//		}
+//		script := strings.ReplaceAll(scriptTemplate, "$expr", ev.Expr)
+//		script = strings.ReplaceAll(script, "$keyExpr", keyExpr)
+//		fmt.Printf("script: %s\n", script)
+//
+//		locs, err := s.client.FindLocation(api.EvalScope{
+//			GoroutineID:  -1,
+//			Frame:        0,
+//			DeferredCall: 0,
+//		},
+//			ev.Frame,
+//			true, // findInstructions
+//			nil,  // substitutePathRules
+//		)
+//		if err != nil {
+//			return err
+//		}
+//		if len(locs) != 1 {
+//			return fmt.Errorf("found %d locations for %s", len(locs), ev.Frame)
+//		}
+//
+//		log.Printf("creating breakpoint: %s - %s (%s)", ev.Frame, ev.Expr, ev.KeyExpr)
+//		_, err = s.client.CreateBreakpoint(&api.Breakpoint{
+//			Name:   evName(ev),
+//			Addrs:  []uint64{locs[0].PC},
+//			File:   locs[0].File,
+//			Line:   locs[0].Line,
+//			Script: script,
+//		})
+//		if err != nil {
+//			return err
+//		}
+//		log.Printf("installed breakpoint: %s - %s (%s)", ev.Frame, ev.Expr, ev.KeyExpr)
+//	}
+//
+//	return nil
+//}
 
-func (s *Server) continueProcess() {
-	// Continue blocks, so we do it on a different goroutine that leaks.
-	go func() {
-		ch := s.client.Continue()
-		_ = ch
-		//for state := range ch {
-		//	log.Printf("got state: %s", pretty.Sprint(state))
-		//}
-		//log.Print("finished with continue; channel closed")
-	}()
+type CapturedExpr struct {
+	Expr string
+	Val  string
 }
 
 // scriptResults is the result of running the walk_stacks.star script.
@@ -263,7 +355,7 @@ type scriptResults struct {
 	// Map from goroutine ID to map from frame index to array of captured values.
 	// The frame indexes match the order in Stacks - from leaf function to
 	// callers.
-	FramesOfInterest map[int]map[int][]agentrpc.CapturedExpr `json:"frames_of_interest"`
+	FramesOfInterest map[int]map[int][]CapturedExpr `json:"frames_of_interest"`
 }
 
 // GetSnapshot collects the stack traces of all the goroutines and the requested
@@ -398,97 +490,6 @@ func stacksToString(stacks map[int]string) string {
 	return sb.String()
 }
 
-func (s *Server) ReconcileFlightRecorder(in agentrpc.ReconcileFlightRecorderIn, out *agentrpc.ReconcileFLightRecorderOut) error {
-	log.Printf("!!! ReconcileFlightRecorder: %v", in)
-	_ /* state */, err := s.client.Halt()
-	if err != nil {
-		panic(err)
-	}
-	defer s.continueProcess()
-
-	scriptTemplate := `
-stmt = eval(None, "$expr")
-flight_recorder(str(cur_scope().GoroutineID), stmt.Variable.Value)
-`
-
-	bks, err := s.client.ListBreakpoints(false /* all ? */)
-	if err != nil {
-		return err
-	}
-
-	evName := func(ev agentrpc.FlightRecorderEventSpec) string {
-		return fmt.Sprintf("%s-%s", ev.Frame, ev.Expr)
-	}
-
-	findEv := func(name string) int {
-		for i, ev := range in.Events {
-			if name == evName(ev) {
-				return i
-			}
-		}
-		return -1
-	}
-
-	// map from idx
-	alreadyExists := make(map[int]struct{})
-	for _, bk := range bks {
-		evIdx := findEv(bk.Name)
-		if evIdx == -1 {
-			_, err := s.client.ClearBreakpoint(bk.ID)
-			if err != nil {
-				return nil
-			}
-		}
-		log.Printf("event %s already exists", bk.Name)
-		alreadyExists[evIdx] = struct{}{}
-	}
-
-	for i, ev := range in.Events {
-		if _, ok := alreadyExists[i]; ok {
-			continue
-		}
-
-		keyExpr := ev.KeyExpr
-		if ev.KeyExpr == "goroutineID" {
-			keyExpr = `str(cur_scope().GoroutineID)`
-		}
-		script := strings.ReplaceAll(scriptTemplate, "$expr", ev.Expr)
-		script = strings.ReplaceAll(script, "$keyExpr", keyExpr)
-		fmt.Printf("script: %s\n", script)
-
-		locs, err := s.client.FindLocation(api.EvalScope{
-			GoroutineID:  -1,
-			Frame:        0,
-			DeferredCall: 0,
-		},
-			ev.Frame,
-			true, // findInstructions
-			nil,  // substitutePathRules
-		)
-		if err != nil {
-			return err
-		}
-		if len(locs) != 1 {
-			return fmt.Errorf("found %d locations for %s", len(locs), ev.Frame)
-		}
-
-		log.Printf("creating breakpoint: %s - %s (%s)", ev.Frame, ev.Expr, ev.KeyExpr)
-		_, err = s.client.CreateBreakpoint(&api.Breakpoint{
-			Name:   evName(ev),
-			Addrs:  []uint64{locs[0].PC},
-			File:   locs[0].File,
-			Line:   locs[0].Line,
-			Script: script,
-		})
-		if err != nil {
-			return err
-		}
-		log.Printf("installed breakpoint: %s - %s (%s)", ev.Frame, ev.Expr, ev.KeyExpr)
-	}
-
-	return nil
-}
-
 func main() {
 	flag.Parse()
 
@@ -506,12 +507,6 @@ func main() {
 			}
 			pretty.Print(stack)
 		}
-
-		//stack, err := client.StacktraceEx(2226, 500, 0, nil)
-		//if err != nil {
-		//	panic(err)
-		//}
-		//pretty.Print(stack)
 
 		return
 	}
@@ -543,24 +538,12 @@ func main() {
 	agentrpc.RegisterDebugInfoServer(grpcSrv, serverImpl)
 	agentrpc.RegisterSnapshotServiceServer(grpcSrv, serverImpl)
 
-	srv := &Server{client: client}
-	if err := rpc.RegisterName("Agent", srv); err != nil {
-		panic(err)
-	}
-	rpc.HandleHTTP()
-	l, e := net.Listen("tcp", *listenAddrFlag)
+	l, e := net.Listen("tcp", *grpclistenAddrFlag)
 	if e != nil {
 		log.Fatal("listen error:", e)
 	}
-	go func() {
-		l, e := net.Listen("tcp", *grpclistenAddrFlag)
-		if e != nil {
-			log.Fatal("listen error:", e)
-		}
-		log.Printf("Serving gRPC on %s", *grpclistenAddrFlag)
-		grpcSrv.Serve(l)
-	}()
-	_ = http.Serve(l, nil)
+	log.Printf("Serving gRPC on %s", *grpclistenAddrFlag)
+	_ = grpcSrv.Serve(l)
 }
 
 //func parseSnapshot(s Snapshot) (*pp.Snapshot, error) {
