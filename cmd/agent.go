@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/andreimatei/delve-agent/rpc"
 	"github.com/google/pprof/profile"
 	"github.com/kr/pretty"
 	pp "github.com/maruel/panicparse/v2/stack"
@@ -23,6 +24,7 @@ import (
 
 var delveAddrFlag = flag.String("addr", "127.0.0.1:45689", "")
 var grpclistenAddrFlag = flag.String("listen-grpc", "127.0.0.1:1235", "")
+var capnplistenAddrFlag = flag.String("listen-capnp", "127.0.0.1:1240", "")
 var oneShot = flag.Bool("oneshot", false, "")
 
 type grpcServer struct {
@@ -536,9 +538,18 @@ func main() {
 	agentrpc.RegisterDebugInfoServer(grpcSrv, serverImpl)
 	agentrpc.RegisterSnapshotServiceServer(grpcSrv, serverImpl)
 
-	l, e := net.Listen("tcp", *grpclistenAddrFlag)
-	if e != nil {
-		log.Fatal("listen error:", e)
+	{
+		l, err := net.Listen("tcp", *capnplistenAddrFlag)
+		if err != nil {
+			log.Fatal("listen error:", err)
+		}
+		rpc.ServeCapnproto(l)
+		log.Printf("Serving CapNProto on %s", *capnplistenAddrFlag)
+	}
+
+	l, err := net.Listen("tcp", *grpclistenAddrFlag)
+	if err != nil {
+		log.Fatal("listen error:", err)
 	}
 	log.Printf("Serving gRPC on %s", *grpclistenAddrFlag)
 	_ = grpcSrv.Serve(l)
