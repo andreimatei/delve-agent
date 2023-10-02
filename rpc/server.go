@@ -16,6 +16,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"time"
 )
 
 func ServeCapnproto(lis net.Listener) {
@@ -111,7 +112,8 @@ type StreamListProcesses struct {
 
 var _ Stream_Server = &StreamListProcesses{}
 
-func (s StreamListProcesses) GetNext(ctx context.Context, next Stream_getNext) error {
+func (s *StreamListProcesses) GetNext(ctx context.Context, next Stream_getNext) error {
+	log.Printf("!!! StreamListProcesses.GetNext()")
 	res, err := next.AllocResults()
 	if err != nil {
 		return err
@@ -133,8 +135,18 @@ func (s StreamListProcesses) GetNext(ctx context.Context, next Stream_getNext) e
 		return err
 	}
 	proc.Proc().SetPid(4242)
+	proc.SetHandle(Process_Handle_ServerToClient(&process{}))
 	list.Set(0, proc)
 
 	res.SetNext(list.ToPtr())
+	return nil
+}
+
+type process struct{}
+
+var _ Process_Handle_Server = &process{}
+
+func (p *process) WaitEnd(ctx context.Context, end Lifecycle_waitEnd) error {
+	time.Sleep(10 * time.Second)
 	return nil
 }
