@@ -113,7 +113,6 @@ type StreamListProcesses struct {
 var _ Stream_Server = &StreamListProcesses{}
 
 func (s *StreamListProcesses) GetNext(ctx context.Context, next Stream_getNext) error {
-	log.Printf("!!! StreamListProcesses.GetNext()")
 	res, err := next.AllocResults()
 	if err != nil {
 		return err
