@@ -38,7 +38,13 @@
 
 syntax = "proto3";
 
-package perftools.profiles;
+// Note: The original name in the pprof repo is perftools.profiles. I've mangled
+// it a bit to make it unique, so the proto doesn't clash in the name registry
+// with the copy of this file in "data". Similarly, I've renamed profile.proto
+// to profile2.proto to avoid a clash on the file name (I think I was supposed
+// to be able to avoid the file name clash using a full path somewhere, but I
+// failed; see https://github.com/golang/protobuf/issues/1122).
+package perftools_profiles;
 
 option java_package = "com.google.perftools.profiles";
 option java_outer_classname = "ProfileProto";

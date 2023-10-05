@@ -2,7 +2,7 @@ syntax = "proto3";
 package agentrpc;
 option go_package = "github.com/andreimatei/delve-agent/agentrpc";
 
-import "profile.proto";
+import "profile2.proto";
 
 message GetTypeInfoIn {
   // binary_id identifies the binary for which type information is requested.
@@ -89,14 +89,12 @@ message ListVarsOut {
 }
 
 message ListFunctionsIn {
-  // binary_id identifies the binary for which function information is requested.
-  int64 binary_id = 1;
   // filter, if not empty, specifies a string that needs to be contained in a
   // function name for it to be included in the result.
   // TODO: smart case?
-  string filter = 2;
+  string filter = 1;
   // The maximum number of results. 0 means no limit.
-  int32 limit = 3;
+  int32 limit = 2;
 }
 
 message ListFunctionsOut {
@@ -105,14 +103,12 @@ message ListFunctionsOut {
 
 // ListTypesIn and ListTypesOut mimic the corresponding RPC from Delve.
 message ListTypesIn {
-  // binary_id identifies the binary for which types information is requested.
-  int64 binary_id = 1;
   // filter, if not empty, specifies a string that needs to be contained in a
   // function name for it to be included in the result.
   // TODO: smart case?
-  string filter = 2;
+  string filter = 1;
   // The maximum number of results. 0 means no limit.
-  int32 limit = 3;
+  int32 limit = 2;
 }
 
 message ListTypesOut {
@@ -178,7 +174,7 @@ message FrameData {
 }
 
 message GetSnapshotOut {
-  perftools.profiles.Profile profile = 1;
+  perftools_profiles.Profile profile = 1;
   //  // Map from goroutine ID to map from frame index to array of captured values.
   //  // The frame indexes match the order in Stacks - from leaf function to
   //  // callers.
